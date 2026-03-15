@@ -1,0 +1,12 @@
+
+backend/.gitignore :
+
+/vendor
+.env
+*.log
+
+mobile/.gitignore :
+
+node_modules/
+.expo/
+.env
