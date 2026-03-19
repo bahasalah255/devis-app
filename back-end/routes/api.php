@@ -1,7 +1,11 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;  
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ProduitController;
+use App\Http\Controllers\DevisController;
+use App\Http\Controllers\DevisLigneController;
 //Routes
 Route::post('/login',    [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -9,5 +13,21 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::middleware('auth:sanctum')->group(function () {
 	Route::post('/logout', [AuthController::class, 'logout']);
 	Route::get('/me', [AuthController::class, 'me']);
+
 });
+ // Clients
+    Route::apiResource('clients', ClientController::class);
+
+    // Produits
+    Route::apiResource('produits', ProduitController::class);
+
+    // Devis
+    Route::apiResource('devis', DevisController::class);
+    Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
+    Route::get('devis/{id}/pdf',      [DevisController::class, 'generatePdf']);
+
+    // Lignes de devis
+    Route::post('devis-lignes',        [DevisLigneController::class, 'store']);
+    Route::put('devis-lignes/{id}',    [DevisLigneController::class, 'update']);
+    Route::delete('devis-lignes/{id}', [DevisLigneController::class, 'destroy']);
 ?>
