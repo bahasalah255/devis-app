@@ -1,144 +1,158 @@
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    ActivityIndicator,
-    Alert
+	View,
+	Text,
+	TextInput,
+	TouchableOpacity,
+	StyleSheet,
+	ActivityIndicator,
+	Alert,
+	SafeAreaView,
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-function Login({navigation}){
-     const [email, setEmail]       = useState('');
-    const [password, setPassword] = useState('');
-    const [loading, setLoading]   = useState(false);
-    const handleLogin = async () => {
-       if(!email || !password){
-        Alert.alert('Erreur','Remplir ces champs')
-        return ;
-       }
-       setLoading(true);
-       try {
-        const response = await axios.post('http://192.168.11.106:8000/api/login', {
-            email,
-            password
-        });
-        await AsyncStorage.setItem('token', response.data.token);
-        await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-        navigation.replace('Dash');
-       }
-   catch (error){
-        Alert.alert('Erreur','Email ou mot de passe incorrect');
-    }
-    setLoading(false)
-     }
-    return (
-        <View style={styles.container}>
+import { API_BASE_URL } from './config';
 
-            {/* TITRE */}
-            <Text style={styles.title}>Devis App</Text>
-            <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+const C = {
+	bg:      '#F2F2F7',
+	white:   '#FFFFFF',
+	border:  '#E5E5EA',
+	text:    '#000000',
+	sub:     '#8E8E93',
+	accent:  '#4F46E5',
+	danger:  '#FF3B30',
+};
 
-            {/* FORMULAIRE */}
-            <View style={styles.form}>
+export default function Login({ navigation }) {
+	const [email, setEmail]       = useState('');
+	const [password, setPassword] = useState('');
+	const [loading, setLoading]   = useState(false);
+	const [showPass, setShowPass] = useState(false);
 
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                    style={styles.input}
-                    placeholder="admin@devis.com"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                />
+	const handleLogin = async () => {
+		if (!email.trim() || !password) {
+			Alert.alert('Champs requis', 'Email et mot de passe obligatoires.');
+			return;
+		}
+		setLoading(true);
+		try {
+			const res = await axios.post(`${API_BASE_URL}/login`, {
+				email: email.trim().toLowerCase(),
+				password,
+			});
+			await AsyncStorage.setItem('token', res.data.token);
+			await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
+			navigation.replace('Dash');
+		} catch (e) {
+			Alert.alert('Erreur', 'Email ou mot de passe incorrect.');
+		} finally {
+			setLoading(false);
+		}
+	};
 
-                <Text style={styles.label}>Mot de passe</Text>
-                <TextInput
-                    style={styles.input}
-                    placeholder="••••••••"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                />
+	return (
+		<SafeAreaView style={s.safe}>
+			<KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+				<ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-                {/* BOUTON LOGIN */}
-                <TouchableOpacity
-                    style={styles.button}
-                    onPress={handleLogin}
-                    disabled={loading}
-                >
-                    {loading
-                        ? <ActivityIndicator color="#fff" />
-                        : <Text style={styles.buttonText}>Se connecter</Text>
-                    }
-                </TouchableOpacity>
+					<View style={s.top}>
+						<Text style={s.appName}>Devis App</Text>
+						<Text style={s.appSub}>Connectez-vous pour continuer</Text>
+					</View>
 
-            </View>
+					<View style={s.group}>
+						<View style={s.row}>
+							<TextInput
+								style={s.input}
+								placeholder="Email"
+								placeholderTextColor={C.sub}
+								keyboardType="email-address"
+								autoCapitalize="none"
+								autoCorrect={false}
+								value={email}
+								onChangeText={setEmail}
+							/>
+						</View>
+						<View style={s.separator} />
+						<View style={[s.row, { paddingRight: 0 }]}>
+							<TextInput
+								style={[s.input, { flex: 1 }]}
+								placeholder="Mot de passe"
+								placeholderTextColor={C.sub}
+								secureTextEntry={!showPass}
+								value={password}
+								onChangeText={setPassword}
+								onSubmitEditing={handleLogin}
+								returnKeyType="go"
+							/>
+							<TouchableOpacity style={s.showBtn} onPress={() => setShowPass(p => !p)}>
+								<Text style={s.showBtnText}>{showPass ? 'Cacher' : 'Voir'}</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
 
-        </View>
-    );
+					<TouchableOpacity
+						style={[s.btn, loading && { opacity: 0.6 }]}
+						onPress={handleLogin}
+						disabled={loading}
+						activeOpacity={0.8}
+					>
+						{loading
+							? <ActivityIndicator color="#fff" />
+							: <Text style={s.btnText}>Se connecter</Text>
+						}
+					</TouchableOpacity>
+
+					<Text style={s.footer}>Equipement Chefchaouni</Text>
+
+				</ScrollView>
+			</KeyboardAvoidingView>
+		</SafeAreaView>
+	);
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-    },
-    title: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#1a1a2e',
-        textAlign: 'center',
-        marginBottom: 8,
-    },
-    subtitle: {
-        fontSize: 14,
-        color: '#666',
-        textAlign: 'center',
-        marginBottom: 40,
-    },
-    form: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 6,
-    },
-    input: {
-        backgroundColor: '#f9f9f9',
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        borderRadius: 10,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        fontSize: 15,
-        marginBottom: 16,
-    },
-    button: {
-        backgroundColor: '#4f46e5',
-        borderRadius: 10,
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    buttonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-});
+const s = StyleSheet.create({
+	safe:    { flex: 1, backgroundColor: C.bg },
+	scroll:  { flexGrow: 1, padding: 20, justifyContent: 'center' },
 
-export default Login
+	top: { marginBottom: 36 },
+	appName: { fontSize: 30, fontWeight: '700', color: C.text, letterSpacing: -0.5 },
+	appSub:  { fontSize: 15, color: C.sub, marginTop: 4 },
+
+	group: {
+		backgroundColor: C.white,
+		borderRadius: 12,
+		borderWidth: 1,
+		borderColor: C.border,
+		marginBottom: 12,
+		overflow: 'hidden',
+	},
+	row: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		paddingHorizontal: 14,
+	},
+	separator: { height: 1, backgroundColor: C.border, marginLeft: 14 },
+	input: {
+		flex: 1,
+		paddingVertical: 14,
+		fontSize: 16,
+		color: C.text,
+	},
+	showBtn: { paddingHorizontal: 14, paddingVertical: 14 },
+	showBtnText: { fontSize: 14, color: C.accent, fontWeight: '600' },
+
+	btn: {
+		backgroundColor: C.accent,
+		borderRadius: 12,
+		paddingVertical: 15,
+		alignItems: 'center',
+		marginBottom: 24,
+	},
+	btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+	footer: { textAlign: 'center', color: C.sub, fontSize: 13 },
+});
