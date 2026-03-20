@@ -2,18 +2,18 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
+#[Fillable([
+    'nom',
+    'email',
+    'telephone',
+    'adresse',
+    
+])]
 class Client extends Model
 {
-     protected $fillable = [
-        'nom',
-        'email',
-        'telephone',
-        'adresse',
-
-    ];
-
     public function devis()
     {
         return $this->hasMany(Devis::class);

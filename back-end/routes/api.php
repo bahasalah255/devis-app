@@ -14,20 +14,21 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::post('/logout', [AuthController::class, 'logout']);
 	Route::get('/me', [AuthController::class, 'me']);
 
-});
+	// Devis
+	Route::apiResource('devis', DevisController::class);
+	Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
+	Route::get('devis/{id}/pdf',      [DevisController::class, 'generatePdf']);
+
+	// Lignes de devis
+	Route::post('devis-lignes',        [DevisLigneController::class, 'store']);
+	Route::put('devis-lignes/{id}',    [DevisLigneController::class, 'update']);
+	Route::delete('devis-lignes/{id}', [DevisLigneController::class, 'destroy']);
+
+ });
  // Clients
     Route::apiResource('clients', ClientController::class);
 
     // Produits
     Route::apiResource('produits', ProduitController::class);
-
-    // Devis
-    Route::apiResource('devis', DevisController::class);
-    Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
-    Route::get('devis/{id}/pdf',      [DevisController::class, 'generatePdf']);
-
-    // Lignes de devis
-    Route::post('devis-lignes',        [DevisLigneController::class, 'store']);
-    Route::put('devis-lignes/{id}',    [DevisLigneController::class, 'update']);
-    Route::delete('devis-lignes/{id}', [DevisLigneController::class, 'destroy']);
+   
 ?>

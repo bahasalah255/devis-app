@@ -1,17 +1,17 @@
 <?php
 
 namespace App\Models;
-
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
-
-class Produit extends Model
-{
-      protected $fillable = [
+#[Fillable([
         'libelle',
         'description',
         'prix_unitaire',
         'tva',
         'unite',
-        'actif',
-    ];
+    
+])]
+class Produit extends Model
+{
+     
 }

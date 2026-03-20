@@ -3,11 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
-class Devis extends Model
-{
-    protected $fillable = [
-        'numero',
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+#[Fillable([
+     'numero',
         'client_id',
         'user_id',
         'statut',
@@ -16,7 +14,10 @@ class Devis extends Model
         'total_ht',
         'tva',
         'total_ttc',
-    ];
+])]
+class Devis extends Model
+{
+   
 
     public function client()
     {

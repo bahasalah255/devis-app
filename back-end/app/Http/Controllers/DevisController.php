@@ -8,10 +8,9 @@ use Illuminate\Http\Request;
 
 class DevisController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $devis = Devis::with('client', 'lignes')
-            ->where('user_id', auth()->id())
             ->latest()
             ->get();
 
@@ -45,7 +44,7 @@ class DevisController extends Controller
         // Créer le devis
         $devis = Devis::create([
             'client_id'     => $request->client_id,
-            'user_id'       => auth()->id(),
+            'user_id'       => $request->user()->id,
             'statut'        => 'brouillon',
             'date_emission' => $request->date_emission,
             'date_validite' => $request->date_validite,
@@ -72,10 +71,10 @@ class DevisController extends Controller
         return response()->json($devis->load('lignes', 'client'), 201);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $devis = Devis::with('client', 'lignes.produit')
-            ->where('user_id', auth()->id())
+            ->where('user_id', $request->user()->id)
             ->findOrFail($id);
 
         return response()->json($devis);

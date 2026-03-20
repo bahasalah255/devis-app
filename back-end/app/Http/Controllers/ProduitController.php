@@ -10,7 +10,7 @@ class ProduitController extends Controller
 {
     public function index()
     {
-        $produits = Produit::where('actif', true)->get();
+        $produits = Produit->get();
         return response()->json($produits);
     }
 
@@ -21,7 +21,7 @@ class ProduitController extends Controller
             'description'   => 'nullable|string',
             'prix_unitaire' => 'required|numeric|min:0',
             'tva'           => 'nullable|numeric|min:0|max:100',
-            'unite'         => 'required|in:unité,heure,jour,semaine,mois,kg,litre,metre,forfait',
+            'unite'         => 'required|in:unite,kg,litre,metre',
         ]);
 
         $produit = Produit::create([
@@ -30,7 +30,7 @@ class ProduitController extends Controller
             'prix_unitaire' => $request->prix_unitaire,
             'tva'           => $request->tva ?? 20.00,
             'unite'         => $request->unite,
-            'actif'         => true,
+           
         ]);
 
         return response()->json($produit, 201);
