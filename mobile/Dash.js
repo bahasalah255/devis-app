@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 
 function Dash({ navigation }) {
@@ -8,6 +9,7 @@ function Dash({ navigation }) {
     const [devis, setDevis] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+   
 
     const getStatusStyle = (status) => {
         if (status === 'accepte') return styles.statusAccepted;
@@ -80,7 +82,10 @@ function Dash({ navigation }) {
     const acceptedDevis = devis.filter((item) => item.statut === 'accepte').length;
 
     const handleCreateDevis = () => {
+        /*
         Alert.alert('Créer un devis', 'Écran de création à brancher ici.');
+        */
+        navigation.replace('CreateDevis');
     };
 
     const handleEditDevis = (item) => {
