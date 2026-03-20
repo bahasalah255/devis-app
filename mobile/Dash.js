@@ -1,369 +1,246 @@
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import {
+	View,
+	Text,
+	TouchableOpacity,
+	StyleSheet,
+	FlatList,
+	Alert,
+	ActivityIndicator,
+	SafeAreaView,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { API_BASE_URL } from './config';
 
-function Dash({ navigation }) {
-    const [user, setUser] = useState(null);
-    const [devis, setDevis] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-   
+const C = {
+	bg:     '#F2F2F7',
+	white:  '#FFFFFF',
+	border: '#E5E5EA',
+	text:   '#000000',
+	sub:    '#8E8E93',
+	accent: '#4F46E5',
+};
 
-    const getStatusStyle = (status) => {
-        if (status === 'accepte') return styles.statusAccepted;
-        if (status === 'refuse') return styles.statusRefused;
-        return styles.statusDraft;
-    };
+const STATUS = {
+	brouillon: { label: 'Brouillon', bg: '#FFF3CD', color: '#856404' },
+	envoye:    { label: 'Envoye',    bg: '#D1ECF1', color: '#0C5460' },
+	accepte:   { label: 'Accepte',   bg: '#D4EDDA', color: '#155724' },
+	refuse:    { label: 'Refuse',    bg: '#F8D7DA', color: '#721C24' },
+};
 
-    const formatTotal = (value) => {
-        const amount = Number(value || 0);
-        return `${amount.toFixed(2)} MAD`;
-    };
-
-    const loadData = async (isRefresh = false) => {
-        if (isRefresh) {
-            setRefreshing(true);
-        } else {
-            setLoading(true);
-        }
-
-        try {
-            const [userData, token] = await Promise.all([
-                AsyncStorage.getItem('user'),
-                AsyncStorage.getItem('token'),
-            ]);
-
-            if (userData) {
-                const parsed = JSON.parse(userData);
-                setUser(parsed);
-            }
-
-            if (!token) {
-                Alert.alert('Session expirée', 'Reconnecte-toi pour voir tes devis.');
-                navigation.replace('Login');
-                return;
-            }
-
-            const response = await axios.get('http://192.168.11.106:8000/api/devis', {
-                headers: {
-                    Accept: 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            if (Array.isArray(response.data)) {
-                setDevis(response.data);
-            } else {
-                setDevis([]);
-            }
-        } catch (error) {
-            const statusCode = error?.response?.status;
-
-            if (statusCode === 401) {
-                Alert.alert('Non autorisé', 'Reconnecte-toi pour accéder aux devis.');
-                navigation.replace('Login');
-                return;
-            }
-
-            Alert.alert('Erreur', 'Impossible de charger les devis.');
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const totalDevis = devis.length;
-    const acceptedDevis = devis.filter((item) => item.statut === 'accepte').length;
-
-    const handleCreateDevis = () => {
-        /*
-        Alert.alert('Créer un devis', 'Écran de création à brancher ici.');
-        */
-        navigation.replace('CreateDevis');
-    };
-
-    const handleEditDevis = (item) => {
-        Alert.alert('Modifier un devis', `Devis sélectionné: ${item.numero}`);
-    };
-
-    return (
-        <View style={styles.container}>
-            <View style={styles.headerRow}>
-                <View>
-                    <Text style={styles.appTitle}>Dashboard</Text>
-                    <Text style={styles.subtitle}>Bonjour {user ? user.name : '...'}</Text>
-                </View>
-                <TouchableOpacity
-                    style={styles.logoutButton}
-                    onPress={() => navigation.navigate('Login')}
-                >
-                    <Text style={styles.logoutText}>Déconnexion</Text>
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.summaryCard}>
-                <Text style={styles.companyName}>Equipement Chefchaouni</Text>
-                <View style={styles.summaryRow}>
-                    <View style={styles.summaryBox}>
-                        <Text style={styles.summaryValue}>{totalDevis}</Text>
-                        <Text style={styles.summaryLabel}>Total devis</Text>
-                    </View>
-                    <View style={styles.summaryBox}>
-                        <Text style={styles.summaryValue}>{acceptedDevis}</Text>
-                        <Text style={styles.summaryLabel}>Acceptés</Text>
-                    </View>
-                </View>
-            </View>
-
-            <View style={styles.listCard}>
-                <View style={styles.listHeader}>
-                    <Text style={styles.sectionTitle}>Mes devis</Text>
-                    <View style={styles.actionsRow}>
-                        <TouchableOpacity style={styles.createButton} onPress={handleCreateDevis}>
-                            <Text style={styles.createButtonText}>Créer un devis</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => loadData(true)}>
-                            <Text style={styles.refreshText}>Actualiser</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {loading ? (
-                    <View style={styles.loadingWrap}>
-                        <ActivityIndicator color="#4f46e5" />
-                    </View>
-                ) : (
-                <FlatList
-                    data={devis}
-                    keyExtractor={item => item.id.toString()}
-                    refreshing={refreshing}
-                    onRefresh={() => loadData(true)}
-                    ListEmptyComponent={<Text style={styles.emptyText}>Aucun devis trouvé.</Text>}
-                    renderItem={({ item }) => (
-                        <View style={styles.devisItem}>
-                            <View style={styles.devisTopRow}>
-                                <Text style={styles.devisNumber}>{item.numero}</Text>
-                                <Text style={[styles.statusBadge, getStatusStyle(item.statut)]}>{item.statut}</Text>
-                            </View>
-                            <Text style={styles.devisMeta}>Client: {item?.client?.nom || 'N/A'}</Text>
-                            <Text style={styles.devisTotal}>Total TTC: {formatTotal(item.total_ttc)}</Text>
-                            <View style={styles.itemActions}>
-                                <TouchableOpacity style={styles.editButton} onPress={() => handleEditDevis(item)}>
-                                    <Text style={styles.editButtonText}>Modifier</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-                    showsVerticalScrollIndicator={false}
-                />
-                )}
-            </View>
-        </View>
-    );
+function Chip({ status }) {
+	const cfg = STATUS[status] || STATUS.brouillon;
+	return (
+		<View style={[s.chip, { backgroundColor: cfg.bg }]}>
+			<Text style={[s.chipText, { color: cfg.color }]}>{cfg.label}</Text>
+		</View>
+	);
 }
 
-export default Dash;
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f3f4f6',
-        paddingHorizontal: 16,
-        paddingTop: 56,
-        paddingBottom: 20,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 14,
-    },
-    appTitle: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#1a1a2e',
-    },
-    subtitle: {
-        fontSize: 14,
-        color: '#6b7280',
-        marginTop: 2,
-    },
-    logoutButton: {
-        backgroundColor: '#1f2937',
-        borderRadius: 10,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-    },
-    logoutText: {
-        color: '#fff',
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    summaryCard: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
-        marginBottom: 14,
-    },
-    companyName: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1a1a2e',
-        marginBottom: 12,
-    },
-    summaryRow: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    summaryBox: {
-        flex: 1,
-        backgroundColor: '#f8fafc',
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        borderRadius: 10,
-        paddingVertical: 14,
-        alignItems: 'center',
-    },
-    summaryValue: {
-        fontSize: 20,
-        color: '#111827',
-        fontWeight: '700',
-    },
-    summaryLabel: {
-        marginTop: 4,
-        fontSize: 12,
-        color: '#6b7280',
-        fontWeight: '600',
-    },
-    listCard: {
-        flex: 1,
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    listHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    actionsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1a1a2e',
-    },
-    createButton: {
-        backgroundColor: '#4f46e5',
-        borderRadius: 8,
-        paddingVertical: 7,
-        paddingHorizontal: 10,
-    },
-    createButtonText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    refreshText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#4f46e5',
-    },
-    loadingWrap: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    emptyText: {
-        textAlign: 'center',
-        color: '#6b7280',
-        marginTop: 20,
-    },
-    devisItem: {
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        borderRadius: 10,
-        padding: 12,
-        marginBottom: 10,
-        backgroundColor: '#ffffff',
-    },
-    devisTopRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 6,
-    },
-    devisNumber: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 4,
-    },
-    devisMeta: {
-        fontSize: 14,
-        color: '#4b5563',
-    },
-    devisTotal: {
-        marginTop: 4,
-        fontSize: 14,
-        color: '#111827',
-        fontWeight: '700',
-    },
-    itemActions: {
-        marginTop: 10,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-    },
-    editButton: {
-        borderWidth: 1,
-        borderColor: '#4f46e5',
-        borderRadius: 8,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-    },
-    editButtonText: {
-        color: '#4f46e5',
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    statusBadge: {
-        fontSize: 12,
-        fontWeight: '700',
-        textTransform: 'capitalize',
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        borderRadius: 999,
-        overflow: 'hidden',
-    },
-    statusDraft: {
-        color: '#92400e',
-        backgroundColor: '#fef3c7',
-    },
-    statusAccepted: {
-        color: '#166534',
-        backgroundColor: '#dcfce7',
-    },
-    statusRefused: {
-        color: '#991b1b',
-        backgroundColor: '#fee2e2',
-    },
+export default function Dash({ navigation }) {
+	const [user, setUser]         = useState(null);
+	const [devis, setDevis]       = useState([]);
+	const [loading, setLoading]   = useState(true);
+	const [refreshing, setRefreshing] = useState(false);
+
+	const load = async (refresh = false) => {
+		refresh ? setRefreshing(true) : setLoading(true);
+		try {
+			const [raw, token] = await Promise.all([
+				AsyncStorage.getItem('user'),
+				AsyncStorage.getItem('token'),
+			]);
+			if (raw) setUser(JSON.parse(raw));
+			if (!token) { navigation.replace('Login'); return; }
+
+			const res = await axios.get(`${API_BASE_URL}/devis`, {
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			setDevis(Array.isArray(res.data) ? res.data : []);
+		} catch (e) {
+			if (e?.response?.status === 401) { navigation.replace('Login'); return; }
+			Alert.alert('Erreur', 'Impossible de charger les devis.');
+		} finally {
+			setLoading(false);
+			setRefreshing(false);
+		}
+	};
+
+	useEffect(() => { load(); }, []);
+
+	const logout = () =>
+		Alert.alert('Deconnexion', 'Confirmer ?', [
+			{ text: 'Annuler', style: 'cancel' },
+			{
+				text: 'Deconnecter', style: 'destructive',
+				onPress: async () => {
+					await AsyncStorage.multiRemove(['token', 'user']);
+					navigation.replace('Login');
+				},
+			},
+		]);
+
+	const accepted = devis.filter(d => d.statut === 'accepte').length;
+
+	const renderItem = ({ item, index }) => (
+		<TouchableOpacity
+			activeOpacity={0.7}
+			style={[
+				s.devisRow,
+				index === 0 && s.devisRowFirst,
+				index === devis.length - 1 && s.devisRowLast,
+			]}
+			onPress={() => navigation.navigate('UpdateDevis', { devis: item })}
+		>
+			<View style={{ flex: 1 }}>
+				<Text style={s.devisNum}>{item.numero}</Text>
+				<Text style={s.devisClient} numberOfLines={1}>
+					{item?.client?.nom || 'Client inconnu'}
+				</Text>
+			</View>
+			<View style={{ alignItems: 'flex-end', gap: 5 }}>
+				<Text style={s.devisAmount}>
+					{Number(item.total_ttc || 0).toFixed(2)} MAD
+				</Text>
+				<Chip status={item.statut} />
+			</View>
+			{index < devis.length - 1 && <View style={s.rowSep} />}
+		</TouchableOpacity>
+	);
+
+	return (
+		<SafeAreaView style={s.safe}>
+
+			{/* Header */}
+			<View style={s.header}>
+				<View>
+					<Text style={s.headerName}>{user ? user.name : '—'}</Text>
+					<Text style={s.headerSub}>
+						{devis.length} devis · {accepted} acceptes
+					</Text>
+				</View>
+				<TouchableOpacity onPress={logout}>
+					<Text style={s.logoutText}>Deconnexion</Text>
+				</TouchableOpacity>
+			</View>
+
+			{/* List */}
+			{loading ? (
+				<View style={s.center}>
+					<ActivityIndicator color={C.accent} />
+				</View>
+			) : (
+				<FlatList
+					data={devis}
+					keyExtractor={item => item.id.toString()}
+					renderItem={renderItem}
+					refreshing={refreshing}
+					onRefresh={() => load(true)}
+					contentContainerStyle={s.list}
+					showsVerticalScrollIndicator={false}
+					ListHeaderComponent={
+						<View style={s.listHeader}>
+							<Text style={s.listTitle}>Mes devis</Text>
+							<TouchableOpacity
+								style={s.newBtn}
+								onPress={() => navigation.replace('CreateDevis')}
+							>
+								<Text style={s.newBtnText}>+ Nouveau</Text>
+							</TouchableOpacity>
+						</View>
+					}
+					ListEmptyComponent={
+						<View style={s.empty}>
+							<Text style={s.emptyTitle}>Aucun devis</Text>
+							<Text style={s.emptySub}>Creez votre premier devis</Text>
+						</View>
+					}
+				/>
+			)}
+		</SafeAreaView>
+	);
+}
+
+const s = StyleSheet.create({
+	safe: { flex: 1, backgroundColor: C.bg },
+
+	header: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		paddingHorizontal: 20,
+		paddingVertical: 14,
+		backgroundColor: C.white,
+		borderBottomWidth: 1,
+		borderBottomColor: C.border,
+	},
+	headerName: { fontSize: 18, fontWeight: '700', color: C.text },
+	headerSub:  { fontSize: 13, color: C.sub, marginTop: 2 },
+	logoutText: { fontSize: 14, color: C.accent, fontWeight: '500' },
+
+	list: { padding: 16, gap: 0 },
+
+	listHeader: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		marginBottom: 12,
+	},
+	listTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+	newBtn: {
+		backgroundColor: C.accent,
+		paddingVertical: 8,
+		paddingHorizontal: 14,
+		borderRadius: 8,
+	},
+	newBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+
+	// Devis rows grouped like iOS table
+	devisRow: {
+		backgroundColor: C.white,
+		paddingHorizontal: 14,
+		paddingVertical: 13,
+		flexDirection: 'row',
+		alignItems: 'center',
+		borderLeftWidth: 1,
+		borderRightWidth: 1,
+		borderColor: C.border,
+		position: 'relative',
+	},
+	devisRowFirst: {
+		borderTopWidth: 1,
+		borderTopLeftRadius: 12,
+		borderTopRightRadius: 12,
+	},
+	devisRowLast: {
+		borderBottomWidth: 1,
+		borderBottomLeftRadius: 12,
+		borderBottomRightRadius: 12,
+	},
+	rowSep: {
+		position: 'absolute',
+		bottom: 0,
+		left: 14,
+		right: 0,
+		height: 1,
+		backgroundColor: C.border,
+	},
+
+	devisNum:    { fontSize: 15, fontWeight: '600', color: C.text },
+	devisClient: { fontSize: 13, color: C.sub, marginTop: 2 },
+	devisAmount: { fontSize: 14, fontWeight: '600', color: C.text },
+
+	chip: {
+		paddingVertical: 2,
+		paddingHorizontal: 8,
+		borderRadius: 5,
+	},
+	chipText: { fontSize: 11, fontWeight: '600' },
+
+	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+	empty: { alignItems: 'center', paddingTop: 60, gap: 6 },
+	emptyTitle: { fontSize: 17, fontWeight: '600', color: C.text },
+	emptySub:   { fontSize: 14, color: C.sub },
 });
