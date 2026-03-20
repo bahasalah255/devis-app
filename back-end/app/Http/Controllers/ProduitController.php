@@ -10,7 +10,7 @@ class ProduitController extends Controller
 {
     public function index()
     {
-        $produits = Produit->get();
+        $produits = Produit::get();
         return response()->json($produits);
     }
 
