@@ -10,516 +10,471 @@ import {
 	ActivityIndicator,
 	Modal,
 	FlatList,
+	SafeAreaView,
+	Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { API_BASE_URL } from './config';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-function Create({ navigation }) {
-	const [clientId, setClientId] = useState('');
-	const [dateEmission, setDateEmission] = useState(new Date());
-	const [dateValidite, setDateValidite] = useState(new Date());
-	const [lignes, setLignes] = useState([
-		{ produit_id: '', nom_produit: '', description: '', quantite: '1', prix_unitaire: '', remise: '0' },
-	]);
-	const [clients, setClients] = useState([]);
-	const [produits, setProduits] = useState([]);
+const C = {
+	bg:     '#F2F2F7',
+	white:  '#FFFFFF',
+	border: '#E5E5EA',
+	text:   '#000000',
+	sub:    '#8E8E93',
+	accent: '#4F46E5',
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const toISO  = d => `${d.getFullYear()}-${`${d.getMonth()+1}`.padStart(2,'0')}-${`${d.getDate()}`.padStart(2,'0')}`;
+const toDisp = d => `${`${d.getDate()}`.padStart(2,'0')}/${`${d.getMonth()+1}`.padStart(2,'0')}/${d.getFullYear()}`;
+const calcLigne = l => (parseFloat(l.quantite)||0) * (parseFloat(l.prix_unitaire)||0) * (1 - (parseFloat(l.remise)||0)/100);
+
+// ─── Date picker modal ────────────────────────────────────────────────────────
+function DateModal({ visible, date, onConfirm, onCancel }) {
+	const [tmp, setTmp] = useState(date);
+	useEffect(() => { if (visible) setTmp(date); }, [visible]);
+	if (!visible) return null;
+
+	if (Platform.OS === 'android') {
+		return (
+			<DateTimePicker
+				value={tmp}
+				mode="date"
+				display="default"
+				onChange={(e, d) => e.type === 'set' && d ? onConfirm(d) : onCancel()}
+			/>
+		);
+	}
+	return (
+		<Modal visible transparent animationType="slide">
+			<View style={s.dateOverlay}>
+				<View style={s.dateSheet}>
+					<View style={s.dateSheetBar}>
+						<TouchableOpacity onPress={onCancel}>
+							<Text style={s.dateCancel}>Annuler</Text>
+						</TouchableOpacity>
+						<TouchableOpacity onPress={() => onConfirm(tmp)}>
+							<Text style={s.dateConfirm}>Confirmer</Text>
+						</TouchableOpacity>
+					</View>
+					<DateTimePicker
+						value={tmp}
+						mode="date"
+						display="inline"
+						accentColor={C.accent}
+						themeVariant="light"
+						onChange={(_, d) => d && setTmp(d)}
+						style={{ width: '100%' }}
+					/>
+				</View>
+			</View>
+		</Modal>
+	);
+}
+
+// ─── Picker sheet ─────────────────────────────────────────────────────────────
+function PickerSheet({ visible, title, data, renderItem, onClose }) {
+	return (
+		<Modal visible={visible} transparent animationType="slide">
+			<View style={s.sheetOverlay}>
+				<View style={s.sheet}>
+					<View style={s.sheetBar}>
+						<Text style={s.sheetTitle}>{title}</Text>
+						<TouchableOpacity onPress={onClose}>
+							<Text style={s.sheetClose}>Fermer</Text>
+						</TouchableOpacity>
+					</View>
+					<FlatList
+						data={data}
+						keyExtractor={item => item.id.toString()}
+						renderItem={({ item }) => renderItem(item)}
+						showsVerticalScrollIndicator={false}
+						ListEmptyComponent={<Text style={s.emptyText}>Aucun element</Text>}
+					/>
+				</View>
+			</View>
+		</Modal>
+	);
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export default function Create({ navigation }) {
+	const [clientId, setClientId]   = useState('');
+	const [dateEm, setDateEm]       = useState(new Date());
+	const [dateVal, setDateVal]     = useState(() => { const d = new Date(); d.setDate(d.getDate()+30); return d; });
+	const [lignes, setLignes]       = useState([{ produit_id:'', nom:'', description:'', quantite:'1', prix:'', remise:'0' }]);
+	const [clients, setClients]     = useState([]);
+	const [produits, setProduits]   = useState([]);
 	const [loadingRefs, setLoadingRefs] = useState(true);
-	const [loading, setLoading] = useState(false);
-	const [showEmissionPicker, setShowEmissionPicker] = useState(false);
-	const [showValiditePicker, setShowValiditePicker] = useState(false);
-	const [showClientModal, setShowClientModal] = useState(false);
-	const [showProduitModal, setShowProduitModal] = useState(false);
-	const [activeLineIndex, setActiveLineIndex] = useState(0);
+	const [submitting, setSubmitting]   = useState(false);
+	const [dateTarget, setDateTarget]   = useState(null);
+	const [showClients, setShowClients] = useState(false);
+	const [showProduits, setShowProduits] = useState(false);
+	const [activeLine, setActiveLine]   = useState(0);
 
-	const formatDate = (date) => {
-		const year = date.getFullYear();
-		const month = `${date.getMonth() + 1}`.padStart(2, '0');
-		const day = `${date.getDate()}`.padStart(2, '0');
-		return `${year}-${month}-${day}`;
-	};
-
-	const selectedClient = clients.find((client) => String(client.id) === String(clientId));
+	const client = clients.find(c => String(c.id) === String(clientId));
+	const totalHT  = lignes.reduce((sum, l) => sum + calcLigne({ quantite: l.quantite, prix_unitaire: l.prix, remise: l.remise }), 0);
+	const totalTTC = totalHT * 1.2;
 
 	useEffect(() => {
-		const loadReferences = async () => {
+		(async () => {
 			setLoadingRefs(true);
 			try {
 				const token = await AsyncStorage.getItem('token');
-				const headers = {
-					Accept: 'application/json',
-					Authorization: token ? `Bearer ${token}` : '',
-				};
-
-				const [clientsResponse, produitsResponse] = await Promise.all([
-					axios.get('http://192.168.11.106:8000/api/clients', { headers }),
-					axios.get('http://192.168.11.106:8000/api/produits', { headers }),
+				const h = { Authorization: `Bearer ${token}` };
+				const [cr, pr] = await Promise.all([
+					axios.get(`${API_BASE_URL}/clients`, { headers: h }),
+					axios.get(`${API_BASE_URL}/produits`, { headers: h }),
 				]);
-
-				setClients(Array.isArray(clientsResponse.data) ? clientsResponse.data : []);
-				setProduits(Array.isArray(produitsResponse.data) ? produitsResponse.data : []);
-			} catch (error) {
-				Alert.alert('Erreur', 'Impossible de charger clients/produits.');
-			} finally {
-				setLoadingRefs(false);
-			}
-		};
-
-		loadReferences();
+				setClients(Array.isArray(cr.data) ? cr.data : []);
+				setProduits(Array.isArray(pr.data) ? pr.data : []);
+			} catch { Alert.alert('Erreur', 'Chargement impossible.'); }
+			finally { setLoadingRefs(false); }
+		})();
 	}, []);
 
-	const handleAddLigne = () => {
-		setLignes((prev) => [
-			...prev,
-			{ produit_id: '', nom_produit: '', description: '', quantite: '1', prix_unitaire: '', remise: '0' },
-		]);
-	};
+	const setLigne = (i, key, val) =>
+		setLignes(prev => prev.map((l, idx) => idx === i ? { ...l, [key]: val } : l));
 
-	const handleRemoveLigne = (index) => {
-		setLignes((prev) => prev.filter((_, i) => i !== index));
-	};
-
-	const handleLigneChange = (index, key, value) => {
-		setLignes((prev) =>
-			prev.map((ligne, i) => (i === index ? { ...ligne, [key]: value } : ligne))
-		);
-	};
-
-	const handleCreateDevis = async () => {
-		if (!clientId) {
-			Alert.alert('Champs requis', 'Remplis tous les champs obligatoires.');
+	const submit = async () => {
+		if (!clientId) { Alert.alert('Client requis'); return; }
+		if (lignes.some(l => !l.nom || !l.quantite || !l.prix)) {
+			Alert.alert('Lignes incompletes', 'Produit, quantite et prix requis.');
 			return;
 		}
-
-		const hasInvalidLine = lignes.some(
-			(ligne) => !ligne.nom_produit || !ligne.quantite || !ligne.prix_unitaire
-		);
-
-		if (hasInvalidLine) {
-			Alert.alert('Champs requis', 'Chaque produit doit avoir description, quantité et prix unitaire.');
-			return;
-		}
-
-		setLoading(true);
-
+		setSubmitting(true);
 		try {
 			const token = await AsyncStorage.getItem('token');
-
-			if (!token) {
-				Alert.alert('Session expirée', 'Reconnecte-toi.');
-				navigation.replace('Login');
-				return;
-			}
-
-			const payload = {
+			await axios.post(`${API_BASE_URL}/devis`, {
 				client_id: Number(clientId),
-				date_emission: formatDate(dateEmission),
-				date_validite: formatDate(dateValidite),
-				lignes: lignes.map((ligne) => ({
-					produit_id: ligne.produit_id ? Number(ligne.produit_id) : null,
-					description: ligne.description || ligne.nom_produit,
-					quantite: Number(ligne.quantite),
-					prix_unitaire: Number(ligne.prix_unitaire),
-					remise: Number(ligne.remise || 0),
+				date_emission: toISO(dateEm),
+				date_validite: toISO(dateVal),
+				lignes: lignes.map(l => ({
+					produit_id:   l.produit_id ? Number(l.produit_id) : null,
+					description:  l.description || l.nom,
+					quantite:     Number(l.quantite),
+					prix_unitaire:Number(l.prix),
+					remise:       Number(l.remise || 0),
 				})),
-			};
+			}, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
 
-			await axios.post('http://192.168.11.106:8000/api/devis', payload, {
-				headers: {
-					Accept: 'application/json',
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`,
-				},
-			});
-
-			Alert.alert('Succès', 'Devis créé avec succès.', [
-				{
-					text: 'OK',
-					onPress: () => navigation.replace('Dash'),
-				},
+			Alert.alert('Devis cree', 'Enregistre avec succes.', [
+				{ text: 'OK', onPress: () => navigation.replace('Dash') },
 			]);
-		} catch (error) {
-			const statusCode = error?.response?.status;
-
-			if (statusCode === 422) {
-				Alert.alert('Validation', 'Vérifie les champs saisis (client/date/ligne).');
-			} else if (statusCode === 401) {
-				Alert.alert('Non autorisé', 'Reconnecte-toi puis réessaie.');
-				navigation.replace('Login');
-			} else {
-				Alert.alert('Erreur', 'Impossible de créer le devis.');
-			}
+		} catch (e) {
+			if (e?.response?.status === 422) Alert.alert('Validation', 'Verifiez les champs.');
+			else Alert.alert('Erreur', 'Impossible de creer le devis.');
 		} finally {
-			setLoading(false);
+			setSubmitting(false);
 		}
 	};
 
 	return (
-		<ScrollView contentContainerStyle={styles.container}>
-			<TouchableOpacity style={styles.backButton} onPress={() => navigation.replace('Dash')}>
-				<Text style={styles.backButtonText}>← Retour au dashboard</Text>
-			</TouchableOpacity>
+		<SafeAreaView style={s.safe}>
 
-			<Text style={styles.title}>Nouveau devis</Text>
-			<Text style={styles.subtitle}>Remplis le formulaire pour créer un devis</Text>
-
-			<View style={styles.card}>
-				<Text style={styles.label}>Client *</Text>
-				<TouchableOpacity style={styles.selector} onPress={() => setShowClientModal(true)} disabled={loadingRefs}>
-					<Text style={styles.selectorText}>
-						{selectedClient ? `${selectedClient.nom} (#${selectedClient.id})` : loadingRefs ? 'Chargement clients...' : 'Choisir un client'}
-					</Text>
+			{/* Header */}
+			<View style={s.header}>
+				<TouchableOpacity onPress={() => navigation.replace('Dash')}>
+					<Text style={s.back}>Retour</Text>
 				</TouchableOpacity>
+				<Text style={s.headerTitle}>Nouveau devis</Text>
+				<View style={{ width: 55 }} />
+			</View>
 
-				<Text style={styles.label}>Date émission *</Text>
-				<TouchableOpacity style={styles.selector} onPress={() => setShowEmissionPicker(true)}>
-					<Text style={styles.selectorText}>{formatDate(dateEmission)}</Text>
-				</TouchableOpacity>
+			<ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-				<Text style={styles.label}>Date validité *</Text>
-				<TouchableOpacity style={styles.selector} onPress={() => setShowValiditePicker(true)}>
-					<Text style={styles.selectorText}>{formatDate(dateValidite)}</Text>
-				</TouchableOpacity>
-
-				{showEmissionPicker && (
-					<DateTimePicker
-						value={dateEmission}
-						mode="date"
-						display="default"
-						onChange={(_, selectedDate) => {
-							setShowEmissionPicker(false);
-							if (selectedDate) setDateEmission(selectedDate);
-						}}
-					/>
-				)}
-
-				{showValiditePicker && (
-					<DateTimePicker
-						value={dateValidite}
-						mode="date"
-						display="default"
-						onChange={(_, selectedDate) => {
-							setShowValiditePicker(false);
-							if (selectedDate) setDateValidite(selectedDate);
-						}}
-					/>
-				)}
-
-				<View style={styles.sectionRow}>
-					<Text style={styles.section}>Produits du devis</Text>
-					<TouchableOpacity style={styles.addLineButton} onPress={handleAddLigne}>
-						<Text style={styles.addLineButtonText}>+ Ajouter un produit</Text>
+				{/* Client */}
+				<Text style={s.sectionLabel}>Client</Text>
+				<View style={s.group}>
+					<TouchableOpacity style={s.row} onPress={() => setShowClients(true)} disabled={loadingRefs}>
+						<Text style={s.rowLabel}>Client</Text>
+						{loadingRefs
+							? <ActivityIndicator size="small" color={C.sub} />
+							: <Text style={[s.rowValue, !client && { color: C.sub }]} numberOfLines={1}>
+									{client ? client.nom : 'Choisir...'}
+								</Text>
+						}
 					</TouchableOpacity>
 				</View>
 
-				{lignes.map((ligne, index) => (
-					<View key={index} style={styles.lineCard}>
-						<View style={styles.lineHeader}>
-							<Text style={styles.lineTitle}>Produit {index + 1}</Text>
-							{lignes.length > 1 && (
-								<TouchableOpacity onPress={() => handleRemoveLigne(index)}>
-									<Text style={styles.removeText}>Supprimer</Text>
-								</TouchableOpacity>
-							)}
-						</View>
+				{/* Dates */}
+				<Text style={s.sectionLabel}>Dates</Text>
+				<View style={s.group}>
+					<TouchableOpacity style={s.row} onPress={() => setDateTarget('em')}>
+						<Text style={s.rowLabel}>Date d'emission</Text>
+						<Text style={s.rowValue}>{toDisp(dateEm)}</Text>
+					</TouchableOpacity>
+					<View style={s.rowSep} />
+					<TouchableOpacity style={s.row} onPress={() => setDateTarget('val')}>
+						<Text style={s.rowLabel}>Date de validite</Text>
+						<Text style={s.rowValue}>{toDisp(dateVal)}</Text>
+					</TouchableOpacity>
+				</View>
 
-						<Text style={styles.label}>Nom produit *</Text>
-						<TouchableOpacity
-							style={styles.selector}
-							onPress={() => {
-								setActiveLineIndex(index);
-								setShowProduitModal(true);
-							}}
-							disabled={loadingRefs}
-						>
-							<Text style={styles.selectorText}>
-								{ligne.nom_produit || (loadingRefs ? 'Chargement produits...' : 'Choisir un produit')}
+				{/* Lignes */}
+				<View style={s.sectionRow}>
+					<Text style={s.sectionLabel}>Produits</Text>
+					<TouchableOpacity onPress={() =>
+						setLignes(p => [...p, { produit_id:'', nom:'', description:'', quantite:'1', prix:'', remise:'0' }])
+					}>
+						<Text style={s.addText}>+ Ajouter</Text>
+					</TouchableOpacity>
+				</View>
+
+				{lignes.map((ligne, i) => (
+					<View key={i} style={[s.group, { marginBottom: 10 }]}>
+						{/* Produit selector */}
+						<TouchableOpacity style={s.row} onPress={() => { setActiveLine(i); setShowProduits(true); }} disabled={loadingRefs}>
+							<Text style={s.rowLabel}>Produit</Text>
+							<Text style={[s.rowValue, !ligne.nom && { color: C.sub }]} numberOfLines={1}>
+								{ligne.nom || 'Choisir...'}
 							</Text>
 						</TouchableOpacity>
-
-						<Text style={styles.label}>Description (optionnel)</Text>
-						<TextInput
-							style={styles.input}
-							placeholder="Détail du produit/service"
-							value={ligne.description}
-							onChangeText={(value) => handleLigneChange(index, 'description', value)}
-						/>
-
-						<Text style={styles.label}>Quantité *</Text>
-						<TextInput
-							style={styles.input}
-							keyboardType="numeric"
-							value={ligne.quantite}
-							onChangeText={(value) => handleLigneChange(index, 'quantite', value)}
-						/>
-
-						<Text style={styles.label}>Prix unitaire *</Text>
-						<TextInput
-							style={styles.input}
-							keyboardType="numeric"
-							placeholder="500"
-							value={ligne.prix_unitaire}
-							onChangeText={(value) => handleLigneChange(index, 'prix_unitaire', value)}
-						/>
-
-						<Text style={styles.label}>Remise (%)</Text>
-						<TextInput
-							style={styles.input}
-							keyboardType="numeric"
-							placeholder="0"
-							value={ligne.remise}
-							onChangeText={(value) => handleLigneChange(index, 'remise', value)}
-						/>
+						<View style={s.rowSep} />
+						{/* Description */}
+						<View style={s.row}>
+							<Text style={s.rowLabel}>Description</Text>
+							<TextInput
+								style={s.rowInput}
+								placeholder="Optionnel"
+								placeholderTextColor={C.sub}
+								value={ligne.description}
+								onChangeText={v => setLigne(i, 'description', v)}
+							/>
+						</View>
+						<View style={s.rowSep} />
+						{/* Qty + Price */}
+						<View style={s.row}>
+							<Text style={s.rowLabel}>Quantite</Text>
+							<TextInput
+								style={s.rowInput}
+								keyboardType="numeric"
+								placeholder="1"
+								placeholderTextColor={C.sub}
+								value={ligne.quantite}
+								onChangeText={v => setLigne(i, 'quantite', v)}
+							/>
+						</View>
+						<View style={s.rowSep} />
+						<View style={s.row}>
+							<Text style={s.rowLabel}>Prix unitaire</Text>
+							<TextInput
+								style={s.rowInput}
+								keyboardType="numeric"
+								placeholder="0.00"
+								placeholderTextColor={C.sub}
+								value={ligne.prix}
+								onChangeText={v => setLigne(i, 'prix', v)}
+							/>
+						</View>
+						<View style={s.rowSep} />
+						<View style={s.row}>
+							<Text style={s.rowLabel}>Remise (%)</Text>
+							<TextInput
+								style={s.rowInput}
+								keyboardType="numeric"
+								placeholder="0"
+								placeholderTextColor={C.sub}
+								value={ligne.remise}
+								onChangeText={v => setLigne(i, 'remise', v)}
+							/>
+						</View>
+						{/* Subtotal */}
+						<View style={s.rowSep} />
+						<View style={[s.row, { backgroundColor: C.bg }]}>
+							<Text style={s.rowLabel}>Sous-total</Text>
+							<Text style={[s.rowValue, { color: C.accent, fontWeight: '600' }]}>
+								{calcLigne({ quantite: ligne.quantite, prix_unitaire: ligne.prix, remise: ligne.remise }).toFixed(2)} MAD
+							</Text>
+						</View>
+						{/* Remove */}
+						{lignes.length > 1 && (
+							<>
+								<View style={s.rowSep} />
+								<TouchableOpacity style={s.row} onPress={() => setLignes(p => p.filter((_,idx) => idx !== i))}>
+									<Text style={{ color: '#FF3B30', fontSize: 15 }}>Supprimer</Text>
+								</TouchableOpacity>
+							</>
+						)}
 					</View>
 				))}
 
+				{/* Totals */}
+				<View style={s.group}>
+					<View style={s.row}>
+						<Text style={s.rowLabel}>Total HT</Text>
+						<Text style={s.rowValue}>{totalHT.toFixed(2)} MAD</Text>
+					</View>
+					<View style={s.rowSep} />
+					<View style={s.row}>
+						<Text style={s.rowLabel}>TVA (20%)</Text>
+						<Text style={s.rowValue}>{(totalTTC - totalHT).toFixed(2)} MAD</Text>
+					</View>
+					<View style={s.rowSep} />
+					<View style={s.row}>
+						<Text style={[s.rowLabel, { fontWeight: '700', color: C.text }]}>Total TTC</Text>
+						<Text style={[s.rowValue, { color: C.accent, fontWeight: '700', fontSize: 16 }]}>
+							{totalTTC.toFixed(2)} MAD
+						</Text>
+					</View>
+				</View>
+
+				{/* Submit */}
 				<TouchableOpacity
-					style={styles.button}
-					onPress={handleCreateDevis}
-					disabled={loading}
+					style={[s.btn, submitting && { opacity: 0.6 }]}
+					onPress={submit}
+					disabled={submitting}
 				>
-					{loading ? (
-						<ActivityIndicator color="#fff" />
-					) : (
-						<Text style={styles.buttonText}>Créer le devis</Text>
-					)}
+					{submitting
+						? <ActivityIndicator color="#fff" />
+						: <Text style={s.btnText}>Creer le devis</Text>
+					}
 				</TouchableOpacity>
-			</View>
 
-			<Modal visible={showClientModal} transparent animationType="slide">
-				<View style={styles.modalOverlay}>
-					<View style={styles.modalCard}>
-						<Text style={styles.modalTitle}>Choisir un client</Text>
-						<FlatList
-							data={clients}
-							keyExtractor={(item) => item.id.toString()}
-							renderItem={({ item }) => (
-								<TouchableOpacity
-									style={styles.optionItem}
-									onPress={() => {
-										setClientId(String(item.id));
-										setShowClientModal(false);
-									}}
-								>
-									<Text style={styles.optionTitle}>{item.nom}</Text>
-									<Text style={styles.optionSub}>ID: {item.id} • {item.email || 'sans email'}</Text>
-								</TouchableOpacity>
-							)}
-						/>
-						<TouchableOpacity style={styles.closeButton} onPress={() => setShowClientModal(false)}>
-							<Text style={styles.closeButtonText}>Fermer</Text>
-						</TouchableOpacity>
-					</View>
-				</View>
-			</Modal>
+				<View style={{ height: 30 }} />
+			</ScrollView>
 
-			<Modal visible={showProduitModal} transparent animationType="slide">
-				<View style={styles.modalOverlay}>
-					<View style={styles.modalCard}>
-						<Text style={styles.modalTitle}>Choisir un produit</Text>
-						<FlatList
-							data={produits}
-							keyExtractor={(item) => item.id.toString()}
-							renderItem={({ item }) => (
-								<TouchableOpacity
-									style={styles.optionItem}
-									onPress={() => {
-										handleLigneChange(activeLineIndex, 'produit_id', String(item.id));
-										handleLigneChange(activeLineIndex, 'nom_produit', item.libelle || `Produit #${item.id}`);
-										handleLigneChange(activeLineIndex, 'prix_unitaire', String(item.prix_unitaire || ''));
-										if (!lignes[activeLineIndex]?.description) {
-											handleLigneChange(activeLineIndex, 'description', item.description || item.libelle || '');
-										}
-										setShowProduitModal(false);
-									}}
-								>
-									<Text style={styles.optionTitle}>{item.libelle || `Produit #${item.id}`}</Text>
-									<Text style={styles.optionSub}>ID: {item.id} • {item.prix_unitaire} MAD</Text>
-								</TouchableOpacity>
-							)}
-						/>
-						<TouchableOpacity style={styles.closeButton} onPress={() => setShowProduitModal(false)}>
-							<Text style={styles.closeButtonText}>Fermer</Text>
-						</TouchableOpacity>
-					</View>
-				</View>
-			</Modal>
-		</ScrollView>
+			{/* Date modal */}
+			<DateModal
+				visible={dateTarget !== null}
+				date={dateTarget === 'em' ? dateEm : dateVal}
+				onConfirm={d => {
+					dateTarget === 'em' ? setDateEm(d) : setDateVal(d);
+					setDateTarget(null);
+				}}
+				onCancel={() => setDateTarget(null)}
+			/>
+
+			{/* Client picker */}
+			<PickerSheet
+				visible={showClients}
+				title="Choisir un client"
+				data={clients}
+				renderItem={item => (
+					<TouchableOpacity
+						style={s.sheetItem}
+						onPress={() => { setClientId(String(item.id)); setShowClients(false); }}
+					>
+						<Text style={s.sheetItemMain}>{item.nom}</Text>
+						{item.email && <Text style={s.sheetItemSub}>{item.email}</Text>}
+					</TouchableOpacity>
+				)}
+				onClose={() => setShowClients(false)}
+			/>
+
+			{/* Produit picker */}
+			<PickerSheet
+				visible={showProduits}
+				title="Choisir un produit"
+				data={produits}
+				renderItem={item => (
+					<TouchableOpacity
+						style={s.sheetItem}
+						onPress={() => {
+							setLigne(activeLine, 'produit_id', String(item.id));
+							setLigne(activeLine, 'nom', item.libelle || `Produit #${item.id}`);
+							setLigne(activeLine, 'prix', String(item.prix_unitaire || ''));
+							if (!lignes[activeLine]?.description)
+								setLigne(activeLine, 'description', item.description || item.libelle || '');
+							setShowProduits(false);
+						}}
+					>
+						<Text style={s.sheetItemMain}>{item.libelle}</Text>
+						<Text style={s.sheetItemSub}>{item.prix_unitaire} MAD · {item.unite}</Text>
+					</TouchableOpacity>
+				)}
+				onClose={() => setShowProduits(false)}
+			/>
+		</SafeAreaView>
 	);
 }
 
-const styles = StyleSheet.create({
-	container: {
-		padding: 16,
-		backgroundColor: '#f3f4f6',
-		paddingBottom: 30,
-	},
-	title: {
-		fontSize: 28,
-		fontWeight: '700',
-		color: '#1a1a2e',
-		marginBottom: 4,
-	},
-	subtitle: {
-		fontSize: 14,
-		color: '#6b7280',
-		marginBottom: 14,
-	},
-	card: {
-		backgroundColor: '#fff',
-		borderRadius: 14,
-		padding: 16,
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.1,
-		shadowRadius: 8,
-		elevation: 3,
-	},
-	section: {
-		marginTop: 8,
-		marginBottom: 8,
-		fontSize: 16,
-		fontWeight: '700',
-		color: '#1f2937',
-	},
-	sectionRow: {
-		marginTop: 8,
-		marginBottom: 8,
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-	},
-	addLineButton: {
-		backgroundColor: '#eef2ff',
-		paddingVertical: 8,
-		paddingHorizontal: 10,
-		borderRadius: 8,
-	},
-	addLineButtonText: {
-		color: '#4f46e5',
-		fontSize: 12,
-		fontWeight: '700',
-	},
-	lineCard: {
-		backgroundColor: '#f9fafb',
-		borderRadius: 10,
-		borderWidth: 1,
-		borderColor: '#e5e7eb',
-		padding: 10,
-		marginBottom: 10,
-	},
-	lineHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-	},
-	lineTitle: {
-		fontSize: 14,
-		fontWeight: '700',
-		color: '#1f2937',
-	},
-	removeText: {
-		fontSize: 12,
-		fontWeight: '700',
-		color: '#b91c1c',
-	},
-	label: {
-		fontSize: 13,
-		color: '#374151',
-		marginBottom: 6,
-		marginTop: 6,
-		fontWeight: '600',
-	},
-	input: {
-		borderWidth: 1,
-		borderColor: '#d1d5db',
-		borderRadius: 10,
-		paddingHorizontal: 12,
-		paddingVertical: 10,
-		backgroundColor: '#f9fafb',
-	},
-	selector: {
-		borderWidth: 1,
-		borderColor: '#d1d5db',
-		borderRadius: 10,
-		paddingHorizontal: 12,
-		paddingVertical: 12,
-		backgroundColor: '#f9fafb',
-	},
-	selectorText: {
-		fontSize: 14,
-		color: '#111827',
-	},
-	button: {
-		marginTop: 16,
-		backgroundColor: '#4f46e5',
-		borderRadius: 10,
-		paddingVertical: 13,
-		alignItems: 'center',
-	},
-	buttonText: {
-		color: '#fff',
-		fontWeight: '700',
-		fontSize: 15,
-	},
-	backButton: {
-		alignSelf: 'flex-start',
-		backgroundColor: '#e5e7eb',
-		paddingVertical: 8,
-		paddingHorizontal: 12,
-		borderRadius: 8,
-		marginBottom: 10,
-	},
-	backButtonText: {
-		fontSize: 13,
-		fontWeight: '700',
-		color: '#1f2937',
-	},
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: 'rgba(0,0,0,0.35)',
-		justifyContent: 'flex-end',
-	},
-	modalCard: {
-		maxHeight: '70%',
-		backgroundColor: '#fff',
-		borderTopLeftRadius: 16,
-		borderTopRightRadius: 16,
-		padding: 16,
-	},
-	modalTitle: {
-		fontSize: 18,
-		fontWeight: '700',
-		color: '#111827',
-		marginBottom: 10,
-	},
-	optionItem: {
-		paddingVertical: 12,
-		borderBottomWidth: 1,
-		borderBottomColor: '#e5e7eb',
-	},
-	optionTitle: {
-		fontSize: 15,
-		fontWeight: '700',
-		color: '#111827',
-	},
-	optionSub: {
-		fontSize: 12,
-		color: '#6b7280',
-		marginTop: 2,
-	},
-	closeButton: {
-		marginTop: 12,
-		backgroundColor: '#111827',
-		paddingVertical: 12,
-		borderRadius: 10,
-		alignItems: 'center',
-	},
-	closeButtonText: {
-		color: '#fff',
-		fontSize: 14,
-		fontWeight: '700',
-	},
-});
+const s = StyleSheet.create({
+	safe:   { flex: 1, backgroundColor: C.bg },
+	scroll: { padding: 16, paddingTop: 12 },
 
-export default Create;
+	header: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+		backgroundColor: C.white,
+		borderBottomWidth: 1,
+		borderBottomColor: C.border,
+	},
+	back:        { fontSize: 16, color: C.accent },
+	headerTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+
+	sectionLabel: { fontSize: 13, color: C.sub, marginBottom: 6, marginTop: 14, marginLeft: 4 },
+	sectionRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
+	addText:      { fontSize: 14, color: C.accent, fontWeight: '500' },
+
+	group: {
+		backgroundColor: C.white,
+		borderRadius: 12,
+		borderWidth: 1,
+		borderColor: C.border,
+		overflow: 'hidden',
+	},
+	row: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		paddingHorizontal: 14,
+		paddingVertical: 13,
+		minHeight: 48,
+	},
+	rowSep:    { height: 1, backgroundColor: C.border, marginLeft: 14 },
+	rowLabel:  { fontSize: 15, color: C.text, flex: 1 },
+	rowValue:  { fontSize: 15, color: C.sub, textAlign: 'right', flex: 1 },
+	rowInput:  { fontSize: 15, color: C.text, textAlign: 'right', flex: 1 },
+
+	btn: {
+		backgroundColor: C.accent,
+		borderRadius: 12,
+		paddingVertical: 15,
+		alignItems: 'center',
+		marginTop: 16,
+	},
+	btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+	// Date modal
+	dateOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+	dateSheet:   { backgroundColor: C.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30 },
+	dateSheetBar: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		paddingHorizontal: 20,
+		paddingVertical: 14,
+		borderBottomWidth: 1,
+		borderBottomColor: C.border,
+	},
+	dateCancel:  { fontSize: 16, color: C.sub },
+	dateConfirm: { fontSize: 16, color: C.accent, fontWeight: '600' },
+
+	// Sheet
+	sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+	sheet: {
+		backgroundColor: C.white,
+		borderTopLeftRadius: 20,
+		borderTopRightRadius: 20,
+		padding: 16,
+		maxHeight: '65%',
+	},
+	sheetBar: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		marginBottom: 12,
+	},
+	sheetTitle:    { fontSize: 16, fontWeight: '600', color: C.text },
+	sheetClose:    { fontSize: 15, color: C.accent },
+	sheetItem:     { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border },
+	sheetItemMain: { fontSize: 15, color: C.text, fontWeight: '500' },
+	sheetItemSub:  { fontSize: 13, color: C.sub, marginTop: 2 },
+	emptyText:     { textAlign: 'center', color: C.sub, padding: 20 },
+});
