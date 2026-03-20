@@ -4,6 +4,7 @@ backend/.gitignore :
 /vendor
 .env
 *.log
+config.js
 
 mobile/.gitignore :
 
