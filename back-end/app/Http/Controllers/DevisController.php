@@ -11,7 +11,7 @@ class DevisController extends Controller
     public function index_archive(Request $request){
         $devis = Devis::with('client', 'lignes.produit')
             ->where('user_id', $request->user()->id)
-            ->where('archive', 1)
+            ->where('archive', 1)->count()
             ->latest()
             ->get();
 
