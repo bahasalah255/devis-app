@@ -3,6 +3,7 @@ import Login from './Login.js';
 import Dash from './Dash.js';
 import Create from './Create.js';
 import Update from './Update.js';
+import Archive from './Archives.js';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -17,6 +18,7 @@ export default function App() {
         <Stack.Screen name="Dash"        component={Dash} />
         <Stack.Screen name="CreateDevis" component={Create} />
         <Stack.Screen name="UpdateDevis" component={Update} />
+        <Stack.Screen name='Archive' component={Archive} />
       </Stack.Navigator>
     </NavigationContainer>
   );

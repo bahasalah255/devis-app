@@ -14,8 +14,9 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::post('/logout', [AuthController::class, 'logout']);
 	Route::get('/me', [AuthController::class, 'me']);
 
-	// Devis
+	// Devis index_archive
 	Route::apiResource('devis', DevisController::class);
+    Route::apiResource('index_archive', DevisController::class);
 	Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
 	Route::get('devis/{id}/pdf',      [DevisController::class, 'generatePdf']);
     Route::patch('Archive/{id}' , [DevisController::class, 'Archive']);
