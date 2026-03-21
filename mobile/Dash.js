@@ -7,9 +7,11 @@ import {
 	FlatList,
 	Alert,
 	ActivityIndicator,
+    Button,
 	SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 
@@ -82,7 +84,35 @@ export default function Dash({ navigation }) {
 		]);
 
 	const accepted = devis.filter(d => d.statut === 'accepte').length;
+    const Archive = (id) => {
+        Alert.alert('Archive','Confirmer ?',[
+            {text : 'Annuler', style : 'cancel'},
+            {
+                text : 'Archiver' , style : 'destructive',
+                onPress : async() => {
+                    try {
+                        const token = await AsyncStorage.getItem('token');
+                        const reponse = await axios.patch(`${API_BASE_URL}/Archive/${id}`,{},
+                            {
+                                headers: {
+                                Authorization: `Bearer ${token}`,
+                                Accept: 'application/json',
+                            }
+                            }
+                        );
+                        console.log('archived')
+                        load()
 
+                    } catch(error) {
+                        console.error('Error:', error.response?.data);
+                    }
+                     
+                }
+            }
+        ])
+       
+
+    };
 	const renderItem = ({ item, index }) => (
 		<TouchableOpacity
 			activeOpacity={0.7}
@@ -92,14 +122,20 @@ export default function Dash({ navigation }) {
 				index === devis.length - 1 && s.devisRowLast,
 			]}
 			onPress={() => navigation.navigate('UpdateDevis', { devis: item })}
+            
 		>
+            
 			<View style={{ flex: 1 }}>
 				<Text style={s.devisNum}>{item.numero}</Text>
 				<Text style={s.devisClient} numberOfLines={1}>
 					{item?.client?.nom || 'Client inconnu'}
 				</Text>
+               
 			</View>
 			<View style={{ alignItems: 'flex-end', gap: 5 }}>
+                <TouchableOpacity onPress={() => Archive(item.id)}>
+  <Ionicons name="archive" size={24} color="gray" />
+</TouchableOpacity>
 				<Text style={s.devisAmount}>
 					{Number(item.total_ttc || 0).toFixed(2)} MAD
 				</Text>
