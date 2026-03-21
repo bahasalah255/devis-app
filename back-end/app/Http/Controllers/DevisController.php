@@ -8,6 +8,15 @@ use Illuminate\Http\Request;
 
 class DevisController extends Controller
 {
+    public function index_archive(Request $request){
+        $devis = Devis::with('client', 'lignes.produit')
+            ->where('user_id', $request->user()->id)
+            ->where('archive', 1)
+            ->latest()
+            ->get();
+
+        return response()->json($devis);
+    }
     public function index(Request $request)
     {
         $devis = Devis::with('client', 'lignes.produit')

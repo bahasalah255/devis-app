@@ -193,7 +193,13 @@ export default function Dash({ navigation }) {
 						</View>
 					}
 				/>
+                
 			)}
+            {/* List Archive */}
+            <TouchableOpacity style={styles.archiveBtn} onPress={() => navigation.replace('Archive')}>
+  <Text style={styles.archiveBtnText}>Mes Devis Archivés</Text>
+</TouchableOpacity>
+
 		</SafeAreaView>
 	);
 }
@@ -279,4 +285,20 @@ const s = StyleSheet.create({
 	empty: { alignItems: 'center', paddingTop: 60, gap: 6 },
 	emptyTitle: { fontSize: 17, fontWeight: '600', color: C.text },
 	emptySub:   { fontSize: 14, color: C.sub },
+    
+});
+const styles = StyleSheet.create({
+  archiveBtn: {
+    backgroundColor: '#185FA5',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  archiveBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });
