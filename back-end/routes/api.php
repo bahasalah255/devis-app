@@ -18,6 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::apiResource('devis', DevisController::class);
 	Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
 	Route::get('devis/{id}/pdf',      [DevisController::class, 'generatePdf']);
+    Route::patch('Archive/{id}' , [DevisController::class, 'Archive']);
 
 	// Lignes de devis
 	Route::post('devis-lignes',        [DevisLigneController::class, 'store']);

@@ -12,6 +12,7 @@ class DevisController extends Controller
     {
         $devis = Devis::with('client', 'lignes.produit')
             ->where('user_id', $request->user()->id)
+            ->where('archive', 0)
             ->latest()
             ->get();
 
@@ -142,5 +143,13 @@ class DevisController extends Controller
         $request->validate(['statut' => 'required|in:brouillon,envoye,accepte,refuse']);
         $devis->update(['statut' => $request->statut]);
         return response()->json($devis);
+    }
+    public function Archive(Request $request,$id)
+    {
+        $devis = Devis::where('user_id', $request->user()->id)->findOrFail($id);
+          //$devis = Devis::findOrFail($id);
+          $devis->update(['archive' => 1]);
+          return response()->json($devis);
+    
     }
 }

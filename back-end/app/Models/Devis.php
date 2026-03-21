@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
         'total_ht',
         'tva',
         'total_ttc',
+        'archive',
 ])]
 class Devis extends Model
 {
