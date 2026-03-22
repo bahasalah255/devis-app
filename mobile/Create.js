@@ -117,9 +117,12 @@ export default function Create({ navigation }) {
 	const [showProduits, setShowProduits] = useState(false);
 	const [activeLine, setActiveLine]   = useState(0);
 	const [clientMode, setClientMode]   = useState('picker');
+	const [clientQuery, setClientQuery] = useState('');
 	const [nomClient, setNomClient]     = useState('');
 	const [emailClient, setEmailClient] = useState('');
 	const [telClient, setTelClient]     = useState('');
+	const [savingClient, setSavingClient] = useState(false);
+	
 
 	const client = clients.find(c => String(c.id) === String(clientId));
 	const totalHT  = lignes.reduce((sum, l) => sum + calcLigne({ quantite: l.quantite, prix_unitaire: l.prix, remise: l.remise }), 0);
@@ -148,60 +151,69 @@ export default function Create({ navigation }) {
 	const closeClientModal = () => {
 		setShowClients(false);
 		setClientMode('picker');
+		setClientQuery('');
 	};
 
-	const saveClientForm = () => {
+	const filteredClients = clients.filter(item => {
+		const q = clientQuery.trim().toLowerCase();
+		if (!q) return true;
+		const nom = String(item?.nom || '').toLowerCase();
+		const email = String(item?.email || '').toLowerCase();
+		return nom.includes(q) || email.includes(q);
+	});
+
+	const saveClientForm = async () => {
+		if (savingClient) return;
 		if (!nomClient.trim()) {
 			Alert.alert('Client', 'Le nom du client est requis.');
 			return;
 		}
-		const tempId = Date.now();
-		const newClient = {
-			id: tempId,
-			nom: nomClient.trim(),
-			email: emailClient.trim(),
-			telephone: telClient.trim(),
-		};
-		//setClients(prev => [newClient, ...prev]);
-		const SaveClient = async () => {
-    try {
-        const token = await AsyncStorage.getItem('token');
+		try {
+			setSavingClient(true);
+			const token = await AsyncStorage.getItem('token');
 
-        const res = await axios.post(
-            `${API_BASE_URL}/clients`,  // ← check your route name
-            {
-                nom: nomClient,
-                email: emailClient,
-                telephone: telClient,
-                adresse: 'test', // ← use a state not hardcoded string
-            },
-            {
-                headers: { Authorization: `Bearer ${token}` }, // ← required!
-            }
-        );
+			const res = await axios.post(
+				`${API_BASE_URL}/clients`,
+				{
+					nom: nomClient.trim(),
+					email: emailClient.trim() || null,
+					telephone: telClient.trim() || null,
+					adresse: null,
+				},
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
 
-        // Add the new client to the list
-        setClients(prev => [...prev, res.data]);
+			const createdClient = res?.data;
+			if (!createdClient?.id) {
+				Alert.alert('Erreur', 'Client créé mais ID invalide reçu.');
+				return;
+			}
 
-        // Select the new client automatically
-        //setClients(res.data);
+			setClients(prev => {
+				const exists = prev.some(c => String(c.id) === String(createdClient.id));
+				if (exists) return prev;
+				return [createdClient, ...prev];
+			});
 
-        // Close the modal and go back to picker
-        setMode('picker');
-        setModalVisible(false);
-
-    } catch (error) {
-        console.log('error:', error?.response?.data);
-        Alert.alert('Erreur', 'Impossible de sauvegarder le client.');
-    }
-};
-SaveClient()
-		setClientId(String(tempId));
-		setNomClient('');
-		setEmailClient('');
-		setTelClient('');
-		
-		closeClientModal();
+			setClientId(String(createdClient.id));
+			setNomClient('');
+			setEmailClient('');
+			setTelClient('');
+			closeClientModal();
+		} catch (error) {
+			console.log('error:', error?.response?.data);
+			const apiErrors = error?.response?.data?.errors;
+			if (apiErrors) {
+				const firstError = Object.values(apiErrors)?.[0]?.[0];
+				Alert.alert('Validation', firstError || 'Données client invalides.');
+			} else {
+				Alert.alert('Erreur', 'Impossible de sauvegarder le client.');
+			}
+		} finally {
+			setSavingClient(false);
+		}
 	};
 
 	const submit = async () => {
@@ -440,8 +452,20 @@ SaveClient()
 
 						{clientMode === 'picker' ? (
 							<>
+								<View style={s.searchWrap}>
+									<Ionicons name="search" size={16} color={C.sub} />
+									<TextInput
+										style={s.searchInput}
+										placeholder="Rechercher par nom ou email"
+										placeholderTextColor={C.sub}
+										value={clientQuery}
+										onChangeText={setClientQuery}
+										autoCapitalize="none"
+									/>
+								</View>
+
 								<FlatList
-									data={clients}
+									data={filteredClients}
 									keyExtractor={item => item.id.toString()}
 									renderItem={({ item }) => (
 										<TouchableOpacity
@@ -459,7 +483,7 @@ SaveClient()
 										</TouchableOpacity>
 									)}
 									showsVerticalScrollIndicator={false}
-									ListEmptyComponent={<Text style={s.emptyText}>Aucun client</Text>}
+									ListEmptyComponent={<Text style={s.emptyText}>Aucun client trouvé</Text>}
 								/>
 
 								<TouchableOpacity style={s.addBtn} onPress={() => setClientMode('form')}>
@@ -498,8 +522,15 @@ SaveClient()
 									onChangeText={setTelClient}
 									keyboardType="phone-pad"
 								/>
-								<TouchableOpacity style={s.addBtn} onPress={saveClientForm}>
-									<Text style={s.addBtnText}>Enregistrer</Text>
+								<TouchableOpacity
+									style={[s.addBtn, savingClient && { opacity: 0.6 }]}
+									onPress={saveClientForm}
+									disabled={savingClient}
+								>
+									{savingClient
+										? <ActivityIndicator color="#fff" />
+										: <Text style={s.addBtnText}>Enregistrer</Text>
+									}
 								</TouchableOpacity>
 							</ScrollView>
 						)}
@@ -646,6 +677,23 @@ const s = StyleSheet.create({
 		fontSize: 12,
 		color: C.sub,
 		marginTop: 2,
+	},
+	searchWrap: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		backgroundColor: '#F7F7FA',
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 10,
+		paddingHorizontal: 10,
+		marginBottom: 10,
+	},
+	searchInput: {
+		flex: 1,
+		height: 40,
+		fontSize: 14,
+		color: C.text,
 	},
 	addBtn: {
 		marginTop: 14,
