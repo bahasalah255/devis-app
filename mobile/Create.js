@@ -13,6 +13,7 @@ import {
 	SafeAreaView,
 	Platform,
 	KeyboardAvoidingView,
+	Button
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -122,7 +123,23 @@ export default function Create({ navigation }) {
 	const [emailClient, setEmailClient] = useState('');
 	const [telClient, setTelClient]     = useState('');
 	const [savingClient, setSavingClient] = useState(false);
-	
+	const [showAddButton,setShowAdd] = useState(false);
+	const [productQuery, setProductQuery] = useState('');
+	const [savingProduct, setSavingProduct] = useState(false);
+	const [productMode, setProductMode] = useState('picker');
+	const [nomProduit, setNomProduit] = useState('');
+	const [prixProduit, setPrixProduit] = useState('');
+	const [descriptionProduit, setDescriptionProduit] = useState('');
+	const [uniteProduit, setUniteProduit] = useState('Piece');
+	const [showUnitePicker, setShowUnitePicker] = useState(false);
+
+	const uniteOptions = [
+		{ label: 'piece', value: 'unite' },
+		{ label: 'Kg', value: 'kg' },
+		{ label: 'litre', value: 'litre' },
+		{ label: 'metre', value: 'metre' },
+		
+	];
 
 	const client = clients.find(c => String(c.id) === String(clientId));
 	const totalHT  = lignes.reduce((sum, l) => sum + calcLigne({ quantite: l.quantite, prix_unitaire: l.prix, remise: l.remise }), 0);
@@ -154,12 +171,90 @@ export default function Create({ navigation }) {
 		setClientQuery('');
 	};
 
+	const closeProductModal = () => {
+		setShowProduits(false);
+		setProductMode('picker');
+		setProductQuery('');
+	};
+
+	const saveProduitForm = async () => {
+		if (savingProduct) return;
+		if (!nomProduit.trim()) {
+			Alert.alert('Produit', 'Le nom du produit est requis.');
+			return;
+		}
+		if (!prixProduit.trim()) {
+			Alert.alert('Produit', 'Le prix du produit est requis.');
+			return;
+		}
+		try {
+			setSavingProduct(true);
+			const token = await AsyncStorage.getItem('token');
+
+			const res = await axios.post(
+				`${API_BASE_URL}/produits`,
+				{
+					libelle: nomProduit.trim(),
+					description: descriptionProduit.trim() || null,
+					prix_unitaire: parseFloat(prixProduit.trim()),
+					unite: uniteProduit.trim(),
+				},
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+
+			const createdProduit = res?.data;
+			if (!createdProduit?.id) {
+				Alert.alert('Erreur', 'Produit créé mais ID invalide reçu.');
+				return;
+			}
+
+			setProduits(prev => {
+				const exists = prev.some(p => String(p.id) === String(createdProduit.id));
+				if (exists) return prev;
+				return [createdProduit, ...prev];
+			});
+
+			setLigne(activeLine, 'produit_id', String(createdProduit.id));
+			setLigne(activeLine, 'nom', createdProduit.libelle);
+			setLigne(activeLine, 'prix', String(createdProduit.prix_unitaire));
+			if (!lignes[activeLine]?.description)
+				setLigne(activeLine, 'description', createdProduit.description || createdProduit.libelle);
+
+			setNomProduit('');
+			setPrixProduit('');
+			setDescriptionProduit('');
+			setUniteProduit('Piece');
+			closeProductModal();
+		} catch (error) {
+			console.log('error:', error?.response?.data);
+			const apiErrors = error?.response?.data?.errors;
+			if (apiErrors) {
+				const firstError = Object.values(apiErrors)?.[0]?.[0];
+				Alert.alert('Validation', firstError || 'Données produit invalides.');
+			} else {
+				Alert.alert('Erreur', 'Impossible de sauvegarder le produit.');
+			}
+		} finally {
+			setSavingProduct(false);
+		}
+	};
+
 	const filteredClients = clients.filter(item => {
 		const q = clientQuery.trim().toLowerCase();
 		if (!q) return true;
 		const nom = String(item?.nom || '').toLowerCase();
 		const email = String(item?.email || '').toLowerCase();
 		return nom.includes(q) || email.includes(q);
+	});
+
+	const filteredProduits = produits.filter(item => {
+		const q = productQuery.trim().toLowerCase();
+		if (!q) return true;
+		const libelle = String(item?.libelle || '').toLowerCase();
+		const description = String(item?.description || '').toLowerCase();
+		return libelle.includes(q) || description.includes(q);
 	});
 
 	const saveClientForm = async () => {
@@ -305,15 +400,17 @@ export default function Create({ navigation }) {
 				{lignes.map((ligne, i) => (
 					<View key={i} style={[s.group, { marginBottom: 10 }]}>
 						{/* Produit selector */}
-						<TouchableOpacity style={s.row} onPress={() => { setActiveLine(i); setShowProduits(true); }} disabled={loadingRefs}>
+						<TouchableOpacity style={s.row} onPress={() => { setActiveLine(i); setShowProduits(true); setShowAdd(true) }} disabled={loadingRefs}>
 							<Text style={s.rowLabel}>Produit</Text>
 							<Text style={[s.rowValue, !ligne.nom && { color: C.sub }]} numberOfLines={1}>
 								{ligne.nom || 'Choisir...'}
+								
 							</Text>
 						</TouchableOpacity>
 						<View style={s.rowSep} />
 						{/* Description */}
 						<View style={s.row}>
+							
 							<Text style={s.rowLabel}>Description</Text>
 							<TextInput
 								style={s.rowInput}
@@ -538,29 +635,158 @@ export default function Create({ navigation }) {
 				</KeyboardAvoidingView>
 			</Modal>
 
-			{/* Produit picker */}
-			<PickerSheet
-				visible={showProduits}
-				title="Choisir un produit"
-				data={produits}
-				renderItem={item => (
-					<TouchableOpacity
-						style={s.sheetItem}
-						onPress={() => {
-							setLigne(activeLine, 'produit_id', String(item.id));
-							setLigne(activeLine, 'nom', item.libelle || `Produit #${item.id}`);
-							setLigne(activeLine, 'prix', String(item.prix_unitaire || ''));
-							if (!lignes[activeLine]?.description)
-								setLigne(activeLine, 'description', item.description || item.libelle || '');
-							setShowProduits(false);
-						}}
-					>
-						<Text style={s.sheetItemMain}>{item.libelle}</Text>
-						<Text style={s.sheetItemSub}>{item.prix_unitaire} MAD · {item.unite}</Text>
-					</TouchableOpacity>
-				)}
-				onClose={() => setShowProduits(false)}
-			/>
+			{/* Produit picker + form */}
+			<Modal visible={showProduits} transparent animationType="slide">
+				<KeyboardAvoidingView
+					style={s.sheetOverlay}
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+				>
+					<View style={[s.sheet, productMode === 'form' && s.sheetFormMode]}>
+						<View style={s.clientSheetHeader}>
+							{productMode === 'form' ? (
+								<TouchableOpacity onPress={() => setProductMode('picker')}>
+									<Ionicons name="arrow-back" size={20} color={C.text} />
+								</TouchableOpacity>
+							) : <View style={{ width: 20 }} />}
+
+							<Text style={s.sheetTitle}>
+								{productMode === 'picker' ? 'Choisir un produit' : 'Nouveau produit'}
+							</Text>
+
+							<TouchableOpacity onPress={closeProductModal}>
+								<Ionicons name="close" size={20} color={C.text} />
+							</TouchableOpacity>
+						</View>
+
+						{productMode === 'picker' ? (
+							<>
+								<View style={s.searchWrap}>
+									<Ionicons name="search" size={16} color={C.sub} />
+									<TextInput
+										style={s.searchInput}
+										placeholder="Rechercher par nom ou description"
+										placeholderTextColor={C.sub}
+										value={productQuery}
+										onChangeText={setProductQuery}
+										autoCapitalize="none"
+									/>
+								</View>
+
+								<FlatList
+									data={filteredProduits}
+									keyExtractor={item => item.id.toString()}
+									renderItem={({ item }) => (
+										<TouchableOpacity
+											style={s.clientRow}
+											onPress={() => {
+												setLigne(activeLine, 'produit_id', String(item.id));
+												setLigne(activeLine, 'nom', item.libelle);
+												setLigne(activeLine, 'prix', String(item.prix_unitaire || ''));
+												if (!lignes[activeLine]?.description)
+													setLigne(activeLine, 'description', item.description || item.libelle);
+												closeProductModal();
+											}}
+										>
+											<View style={{ flex: 1 }}>
+												<Text style={s.clientName}>{item.libelle}</Text>
+												{!!item.description && <Text style={s.clientMeta}>{item.description}</Text>}
+												<Text style={[s.clientMeta, { marginTop: 4 }]}>{item.prix_unitaire} MAD · {item.unite}</Text>
+											</View>
+											<Ionicons name="chevron-forward" size={16} color={C.sub} />
+										</TouchableOpacity>
+									)}
+									showsVerticalScrollIndicator={false}
+									ListEmptyComponent={<Text style={s.emptyText}>Aucun produit trouvé</Text>}
+								/>
+
+								<TouchableOpacity style={s.addBtn} onPress={() => setProductMode('form')}>
+									<Ionicons name="add-circle-outline" size={18} color="#fff" />
+									<Text style={s.addBtnText}>Ajouter un produit</Text>
+								</TouchableOpacity>
+							</>
+						) : (
+							<ScrollView
+								style={s.formScroll}
+								contentContainerStyle={s.form}
+								keyboardShouldPersistTaps="always"
+								showsVerticalScrollIndicator={false}
+							>
+								<TextInput
+									style={s.input}
+									placeholder="Nom du produit"
+									placeholderTextColor={C.sub}
+									value={nomProduit}
+									onChangeText={setNomProduit}
+								/>
+								<TextInput
+									style={s.input}
+									placeholder="Description"
+									placeholderTextColor={C.sub}
+									value={descriptionProduit}
+									onChangeText={setDescriptionProduit}
+								/>
+								<TextInput
+									style={s.input}
+									placeholder="Prix unitaire"
+									placeholderTextColor={C.sub}
+									value={prixProduit}
+									onChangeText={setPrixProduit}
+									keyboardType="decimal-pad"
+								/>
+								<TouchableOpacity 
+									style={s.uniteButton} 
+									onPress={() => setShowUnitePicker(!showUnitePicker)} 
+									activeOpacity={0.7}
+								>
+									<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+										<Ionicons name="layers" size={16} color={C.sub} />
+										<Text style={[s.uniteButtonText, !uniteProduit && { color: C.sub }]}>
+											{uniteProduit || 'Sélectionner unité'}
+										</Text>
+									</View>
+									<Ionicons name={showUnitePicker ? 'chevron-up' : 'chevron-down'} size={16} color={C.sub} />
+								</TouchableOpacity>
+								{showUnitePicker && (
+									<View style={s.unitDropdown}>
+										{uniteOptions.map((option) => (
+											<TouchableOpacity
+												key={option.value}
+												style={[s.unitDropdownItem, uniteProduit === option.value && s.unitDropdownItemActive]}
+												onPress={() => {
+													setUniteProduit(option.value);
+													setShowUnitePicker(false);
+												}}
+											>
+												<View style={{ flex: 1 }}>
+													<Text style={[s.unitDropdownItemText, uniteProduit === option.value && s.unitDropdownItemTextActive]}>
+														{option.label}
+													</Text>
+												</View>
+												{uniteProduit === option.value && (
+													<Ionicons name="checkmark" size={16} color={C.accent} />
+												)}
+											</TouchableOpacity>
+										))}
+									</View>
+								)}
+								<TouchableOpacity
+									style={[s.addBtn, savingProduct && { opacity: 0.6 }]}
+									onPress={saveProduitForm}
+									disabled={savingProduct}
+								>
+									{savingProduct
+										? <ActivityIndicator color="#fff" />
+										: <Text style={s.addBtnText}>Enregistrer</Text>
+									}
+								</TouchableOpacity>
+							</ScrollView>
+						)}
+					</View>
+				</KeyboardAvoidingView>
+			</Modal>
+
+			{/* Unite picker modal - REMOVED, using inline picker instead */}
 		</SafeAreaView>
 	);
 }
@@ -728,5 +954,61 @@ const s = StyleSheet.create({
 		fontSize: 15,
 		color: C.text,
 		backgroundColor: '#FAFAFB',
+	},
+	pickerContainer: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		height: 46,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 10,
+		paddingHorizontal: 8,
+		backgroundColor: '#FAFAFB',
+		gap: 6,
+		overflow: 'hidden',
+	},
+	uniteButton: {
+		height: 46,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 10,
+		paddingHorizontal: 12,
+		backgroundColor: '#FAFAFB',
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
+	uniteButtonText: {
+		fontSize: 15,
+		color: C.text,
+	},
+	unitDropdown: {
+		backgroundColor: C.white,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderTopWidth: 0,
+		borderBottomLeftRadius: 10,
+		borderBottomRightRadius: 10,
+		overflow: 'hidden',
+	},
+	unitDropdownItem: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingHorizontal: 12,
+		paddingVertical: 12,
+		borderBottomWidth: 1,
+		borderBottomColor: C.border,
+	},
+	unitDropdownItemActive: {
+		backgroundColor: C.bg,
+	},
+	unitDropdownItemText: {
+		fontSize: 15,
+		color: C.text,
+	},
+	unitDropdownItemTextActive: {
+		fontWeight: '600',
+		color: C.accent,
 	},
 });
