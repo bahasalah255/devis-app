@@ -12,11 +12,13 @@ import {
 	FlatList,
 	SafeAreaView,
 	Platform,
+	KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 
 const C = {
 	bg:     '#F2F2F7',
@@ -114,6 +116,10 @@ export default function Create({ navigation }) {
 	const [showClients, setShowClients] = useState(false);
 	const [showProduits, setShowProduits] = useState(false);
 	const [activeLine, setActiveLine]   = useState(0);
+	const [clientMode, setClientMode]   = useState('picker');
+	const [nomClient, setNomClient]     = useState('');
+	const [emailClient, setEmailClient] = useState('');
+	const [telClient, setTelClient]     = useState('');
 
 	const client = clients.find(c => String(c.id) === String(clientId));
 	const totalHT  = lignes.reduce((sum, l) => sum + calcLigne({ quantite: l.quantite, prix_unitaire: l.prix, remise: l.remise }), 0);
@@ -138,6 +144,65 @@ export default function Create({ navigation }) {
 
 	const setLigne = (i, key, val) =>
 		setLignes(prev => prev.map((l, idx) => idx === i ? { ...l, [key]: val } : l));
+
+	const closeClientModal = () => {
+		setShowClients(false);
+		setClientMode('picker');
+	};
+
+	const saveClientForm = () => {
+		if (!nomClient.trim()) {
+			Alert.alert('Client', 'Le nom du client est requis.');
+			return;
+		}
+		const tempId = Date.now();
+		const newClient = {
+			id: tempId,
+			nom: nomClient.trim(),
+			email: emailClient.trim(),
+			telephone: telClient.trim(),
+		};
+		//setClients(prev => [newClient, ...prev]);
+		const SaveClient = async () => {
+    try {
+        const token = await AsyncStorage.getItem('token');
+
+        const res = await axios.post(
+            `${API_BASE_URL}/clients`,  // ← check your route name
+            {
+                nom: nomClient,
+                email: emailClient,
+                telephone: telClient,
+                adresse: 'test', // ← use a state not hardcoded string
+            },
+            {
+                headers: { Authorization: `Bearer ${token}` }, // ← required!
+            }
+        );
+
+        // Add the new client to the list
+        setClients(prev => [...prev, res.data]);
+
+        // Select the new client automatically
+        //setClients(res.data);
+
+        // Close the modal and go back to picker
+        setMode('picker');
+        setModalVisible(false);
+
+    } catch (error) {
+        console.log('error:', error?.response?.data);
+        Alert.alert('Erreur', 'Impossible de sauvegarder le client.');
+    }
+};
+SaveClient()
+		setClientId(String(tempId));
+		setNomClient('');
+		setEmailClient('');
+		setTelClient('');
+		
+		closeClientModal();
+	};
 
 	const submit = async () => {
 		if (!clientId) { Alert.alert('Client requis'); return; }
@@ -191,6 +256,7 @@ export default function Create({ navigation }) {
 				<View style={s.group}>
 					<TouchableOpacity style={s.row} onPress={() => setShowClients(true)} disabled={loadingRefs}>
 						<Text style={s.rowLabel}>Client</Text>
+
 						{loadingRefs
 							? <ActivityIndicator size="small" color={C.sub} />
 							: <Text style={[s.rowValue, !client && { color: C.sub }]} numberOfLines={1}>
@@ -348,22 +414,98 @@ export default function Create({ navigation }) {
 				onCancel={() => setDateTarget(null)}
 			/>
 
-			{/* Client picker */}
-			<PickerSheet
-				visible={showClients}
-				title="Choisir un client"
-				data={clients}
-				renderItem={item => (
-					<TouchableOpacity
-						style={s.sheetItem}
-						onPress={() => { setClientId(String(item.id)); setShowClients(false); }}
-					>
-						<Text style={s.sheetItemMain}>{item.nom}</Text>
-						{item.email && <Text style={s.sheetItemSub}>{item.email}</Text>}
-					</TouchableOpacity>
-				)}
-				onClose={() => setShowClients(false)}
-			/>
+			{/* Client picker + form */}
+			<Modal visible={showClients} transparent animationType="slide">
+				<KeyboardAvoidingView
+					style={s.sheetOverlay}
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+				>
+					<View style={[s.sheet, clientMode === 'form' && s.sheetFormMode]}>
+						<View style={s.clientSheetHeader}>
+							{clientMode === 'form' ? (
+								<TouchableOpacity onPress={() => setClientMode('picker')}>
+									<Ionicons name="arrow-back" size={20} color={C.text} />
+								</TouchableOpacity>
+							) : <View style={{ width: 20 }} />}
+
+							<Text style={s.sheetTitle}>
+								{clientMode === 'picker' ? 'Choisir un client' : 'Nouveau client'}
+							</Text>
+
+							<TouchableOpacity onPress={closeClientModal}>
+								<Ionicons name="close" size={20} color={C.text} />
+							</TouchableOpacity>
+						</View>
+
+						{clientMode === 'picker' ? (
+							<>
+								<FlatList
+									data={clients}
+									keyExtractor={item => item.id.toString()}
+									renderItem={({ item }) => (
+										<TouchableOpacity
+											style={s.clientRow}
+											onPress={() => {
+												setClientId(String(item.id));
+												closeClientModal();
+											}}
+										>
+											<View style={{ flex: 1 }}>
+												<Text style={s.clientName}>{item.nom}</Text>
+												{!!item.email && <Text style={s.clientMeta}>{item.email}</Text>}
+											</View>
+											<Ionicons name="chevron-forward" size={16} color={C.sub} />
+										</TouchableOpacity>
+									)}
+									showsVerticalScrollIndicator={false}
+									ListEmptyComponent={<Text style={s.emptyText}>Aucun client</Text>}
+								/>
+
+								<TouchableOpacity style={s.addBtn} onPress={() => setClientMode('form')}>
+									<Ionicons name="person-add-outline" size={18} color="#fff" />
+									<Text style={s.addBtnText}>Ajouter un client</Text>
+								</TouchableOpacity>
+							</>
+						) : (
+							<ScrollView
+								style={s.formScroll}
+								contentContainerStyle={s.form}
+								keyboardShouldPersistTaps="handled"
+								showsVerticalScrollIndicator={false}
+							>
+								<TextInput
+									style={s.input}
+									placeholder="Nom du client"
+									placeholderTextColor={C.sub}
+									value={nomClient}
+									onChangeText={setNomClient}
+								/>
+								<TextInput
+									style={s.input}
+									placeholder="Email"
+									placeholderTextColor={C.sub}
+									value={emailClient}
+									onChangeText={setEmailClient}
+									autoCapitalize="none"
+									keyboardType="email-address"
+								/>
+								<TextInput
+									style={s.input}
+									placeholder="Telephone"
+									placeholderTextColor={C.sub}
+									value={telClient}
+									onChangeText={setTelClient}
+									keyboardType="phone-pad"
+								/>
+								<TouchableOpacity style={s.addBtn} onPress={saveClientForm}>
+									<Text style={s.addBtnText}>Enregistrer</Text>
+								</TouchableOpacity>
+							</ScrollView>
+						)}
+					</View>
+				</KeyboardAvoidingView>
+			</Modal>
 
 			{/* Produit picker */}
 			<PickerSheet
@@ -465,6 +607,9 @@ const s = StyleSheet.create({
 		padding: 16,
 		maxHeight: '65%',
 	},
+	sheetFormMode: {
+		maxHeight: '82%',
+	},
 	sheetBar: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
@@ -477,4 +622,63 @@ const s = StyleSheet.create({
 	sheetItemMain: { fontSize: 15, color: C.text, fontWeight: '500' },
 	sheetItemSub:  { fontSize: 13, color: C.sub, marginTop: 2 },
 	emptyText:     { textAlign: 'center', color: C.sub, padding: 20 },
+
+	clientSheetHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 12,
+	},
+	clientRow: {
+		paddingVertical: 13,
+		borderBottomWidth: 1,
+		borderBottomColor: C.border,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+	},
+	clientName: {
+		fontSize: 15,
+		fontWeight: '500',
+		color: C.text,
+	},
+	clientMeta: {
+		fontSize: 12,
+		color: C.sub,
+		marginTop: 2,
+	},
+	addBtn: {
+		marginTop: 14,
+		backgroundColor: C.accent,
+		borderRadius: 10,
+		paddingVertical: 12,
+		paddingHorizontal: 14,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 8,
+	},
+	addBtnText: {
+		color: '#fff',
+		fontSize: 14,
+		fontWeight: '600',
+	},
+	form: {
+		gap: 10,
+		paddingTop: 2,
+		paddingBottom: 12,
+	},
+	formScroll: {
+		flexGrow: 0,
+	},
+	input: {
+		height: 46,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 10,
+		paddingHorizontal: 12,
+		fontSize: 15,
+		color: C.text,
+		backgroundColor: '#FAFAFB',
+	},
 });

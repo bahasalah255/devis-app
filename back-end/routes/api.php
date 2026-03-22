@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
  });
  // Clients
     Route::apiResource('clients', ClientController::class);
+	Route::post('clients'  ,[ClientController::class, 'store']);
 
     // Produits
     Route::apiResource('produits', ProduitController::class);
