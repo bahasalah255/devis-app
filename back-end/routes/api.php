@@ -16,10 +16,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
 	// Devis index_archive
 	Route::apiResource('devis', DevisController::class);
-    Route::apiResource('index_archive', DevisController::class);
+   Route::get('/index_archive', [DevisController::class, 'index_archive']);
 	Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
 	Route::get('devis/{id}/pdf',      [DevisController::class, 'generatePdf']);
     Route::patch('Archive/{id}' , [DevisController::class, 'Archive']);
+	Route::patch('Unarchive/{id}' , [DevisController::class, 'Unarchive']);
 
 	// Lignes de devis
 	Route::post('devis-lignes',        [DevisLigneController::class, 'store']);

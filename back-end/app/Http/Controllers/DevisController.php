@@ -11,7 +11,7 @@ class DevisController extends Controller
     public function index_archive(Request $request){
         $devis = Devis::with('client', 'lignes.produit')
             ->where('user_id', $request->user()->id)
-            ->where('archive', 1)->count()
+            ->where('archive', 1)
             ->latest()
             ->get();
 
@@ -158,6 +158,14 @@ class DevisController extends Controller
         $devis = Devis::where('user_id', $request->user()->id)->findOrFail($id);
           //$devis = Devis::findOrFail($id);
           $devis->update(['archive' => 1]);
+          return response()->json($devis);
+    
+    }
+     public function Unarchive(Request $request,$id)
+    {
+        $devis = Devis::where('user_id', $request->user()->id)->findOrFail($id);
+          //$devis = Devis::findOrFail($id);
+          $devis->update(['archive' => 0]);
           return response()->json($devis);
     
     }

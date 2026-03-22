@@ -7,11 +7,10 @@ import {
 	FlatList,
 	Alert,
 	ActivityIndicator,
-    Button,
 	SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons, MaterialIcons, FontAwesome } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 
@@ -109,39 +108,35 @@ export default function Dash({ navigation }) {
                      
                 }
             }
-        ])
+         ])
        
 
     };
 	const renderItem = ({ item, index }) => (
 		<TouchableOpacity
 			activeOpacity={0.7}
-			style={[
-				s.devisRow,
-				index === 0 && s.devisRowFirst,
-				index === devis.length - 1 && s.devisRowLast,
-			]}
+			style={s.devisRow}
 			onPress={() => navigation.navigate('UpdateDevis', { devis: item })}
-            
 		>
-            
-			<View style={{ flex: 1 }}>
+			<View style={s.leftCol}>
 				<Text style={s.devisNum}>{item.numero}</Text>
 				<Text style={s.devisClient} numberOfLines={1}>
 					{item?.client?.nom || 'Client inconnu'}
 				</Text>
-               
+				<View style={s.metaRow}>
+					<Ionicons name="document-text-outline" size={13} color={C.sub} />
+					<Text style={s.metaText}>Devis #{item?.id || '-'}</Text>
+				</View>
 			</View>
-			<View style={{ alignItems: 'flex-end', gap: 5 }}>
-                <TouchableOpacity onPress={() => Archive(item.id)}>
-  <Ionicons name="archive" size={24} color="gray" />
-</TouchableOpacity>
+			<View style={s.rightCol}>
+				<TouchableOpacity onPress={() => Archive(item.id)} style={s.archiveIconBtn}>
+					<Ionicons name="archive-outline" size={18} color={C.accent} />
+				</TouchableOpacity>
 				<Text style={s.devisAmount}>
 					{Number(item.total_ttc || 0).toFixed(2)} MAD
 				</Text>
 				<Chip status={item.statut} />
 			</View>
-			{index < devis.length - 1 && <View style={s.rowSep} />}
 		</TouchableOpacity>
 	);
 
@@ -150,15 +145,25 @@ export default function Dash({ navigation }) {
 
 			{/* Header */}
 			<View style={s.header}>
-				<View>
+				<View style={s.headerLeft}>
+					<Text style={s.welcomeText}>Bienvenue</Text>
 					<Text style={s.headerName}>{user ? user.name : '—'}</Text>
-					<Text style={s.headerSub}>
-						{devis.length} devis · {accepted} acceptes
-					</Text>
 				</View>
-				<TouchableOpacity onPress={logout}>
+				<TouchableOpacity onPress={logout} style={s.logoutBtn}>
+					<Ionicons name="log-out-outline" size={16} color={C.accent} />
 					<Text style={s.logoutText}>Deconnexion</Text>
 				</TouchableOpacity>
+			</View>
+
+			<View style={s.statsRow}>
+				<View style={s.statCard}>
+					<Text style={s.statLabel}>Total devis</Text>
+					<Text style={s.statValue}>{devis.length}</Text>
+				</View>
+				<View style={s.statCard}>
+					<Text style={s.statLabel}>Acceptes</Text>
+					<Text style={[s.statValue, { color: '#1E8E3E' }]}>{accepted}</Text>
+				</View>
 			</View>
 
 			{/* List */}
@@ -178,16 +183,16 @@ export default function Dash({ navigation }) {
 					ListHeaderComponent={
 						<View style={s.listHeader}>
 							<Text style={s.listTitle}>Mes devis</Text>
-							<TouchableOpacity
-								style={s.newBtn}
-								onPress={() => navigation.replace('CreateDevis')}
-							>
-								<Text style={s.newBtnText}>+ Nouveau</Text>
+							<TouchableOpacity style={s.newBtn} onPress={() => navigation.replace('CreateDevis')}>
+								<Ionicons name="add" size={16} color="#fff" />
+								<Text style={s.newBtnText}>Nouveau</Text>
 							</TouchableOpacity>
 						</View>
 					}
+					ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
 					ListEmptyComponent={
 						<View style={s.empty}>
+							<Ionicons name="file-tray-outline" size={34} color={C.sub} />
 							<Text style={s.emptyTitle}>Aucun devis</Text>
 							<Text style={s.emptySub}>Creez votre premier devis</Text>
 						</View>
@@ -196,9 +201,10 @@ export default function Dash({ navigation }) {
                 
 			)}
             {/* List Archive */}
-            <TouchableOpacity style={styles.archiveBtn} onPress={() => navigation.replace('Archive')}>
-  <Text style={styles.archiveBtnText}>Mes Devis Archivés</Text>
-</TouchableOpacity>
+			<TouchableOpacity style={s.archiveBtn} onPress={() => navigation.replace('Archive')}>
+				<Ionicons name="archive" size={18} color="#fff" />
+				<Text style={s.archiveBtnText}>Mes devis archives</Text>
+			</TouchableOpacity>
 
 		</SafeAreaView>
 	);
@@ -211,94 +217,135 @@ const s = StyleSheet.create({
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingHorizontal: 20,
-		paddingVertical: 14,
-		backgroundColor: C.white,
-		borderBottomWidth: 1,
-		borderBottomColor: C.border,
+		paddingHorizontal: 18,
+		paddingTop: 10,
+		paddingBottom: 6,
 	},
+	headerLeft: { flex: 1 },
+	welcomeText: { fontSize: 12, color: C.sub, marginBottom: 2 },
 	headerName: { fontSize: 18, fontWeight: '700', color: C.text },
-	headerSub:  { fontSize: 13, color: C.sub, marginTop: 2 },
-	logoutText: { fontSize: 14, color: C.accent, fontWeight: '500' },
+	logoutBtn: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 5,
+		backgroundColor: C.white,
+		paddingHorizontal: 10,
+		paddingVertical: 7,
+		borderRadius: 10,
+		borderWidth: 1,
+		borderColor: '#E2E8F0',
+	},
+	logoutText: { fontSize: 13, color: C.accent, fontWeight: '600' },
 
-	list: { padding: 16, gap: 0 },
+	statsRow: {
+		paddingHorizontal: 16,
+		paddingTop: 8,
+		paddingBottom: 4,
+		flexDirection: 'row',
+		gap: 10,
+	},
+	statCard: {
+		flex: 1,
+		backgroundColor: C.white,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 12,
+		paddingVertical: 12,
+		paddingHorizontal: 12,
+	},
+	statLabel: { fontSize: 12, color: C.sub, marginBottom: 3 },
+	statValue: { fontSize: 20, color: C.accent, fontWeight: '700' },
+
+	list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
 
 	listHeader: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
-		marginBottom: 12,
+		marginBottom: 10,
 	},
-	listTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+	listTitle: { fontSize: 17, fontWeight: '700', color: C.text },
 	newBtn: {
 		backgroundColor: C.accent,
-		paddingVertical: 8,
-		paddingHorizontal: 14,
-		borderRadius: 8,
+		paddingVertical: 9,
+		paddingHorizontal: 12,
+		borderRadius: 10,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
 	},
-	newBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+	newBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
-	// Devis rows grouped like iOS table
 	devisRow: {
 		backgroundColor: C.white,
 		paddingHorizontal: 14,
-		paddingVertical: 13,
+		paddingVertical: 12,
 		flexDirection: 'row',
-		alignItems: 'center',
-		borderLeftWidth: 1,
-		borderRightWidth: 1,
+		alignItems: 'flex-start',
+		borderWidth: 1,
+		borderRadius: 12,
 		borderColor: C.border,
-		position: 'relative',
 	},
-	devisRowFirst: {
-		borderTopWidth: 1,
-		borderTopLeftRadius: 12,
-		borderTopRightRadius: 12,
+	leftCol: {
+		flex: 1,
+		paddingRight: 10,
 	},
-	devisRowLast: {
-		borderBottomWidth: 1,
-		borderBottomLeftRadius: 12,
-		borderBottomRightRadius: 12,
+	rightCol: {
+		alignItems: 'flex-end',
+		gap: 6,
 	},
-	rowSep: {
-		position: 'absolute',
-		bottom: 0,
-		left: 14,
-		right: 0,
-		height: 1,
-		backgroundColor: C.border,
+	archiveIconBtn: {
+		width: 32,
+		height: 32,
+		borderRadius: 16,
+		borderWidth: 1,
+		borderColor: '#E0E7FF',
+		backgroundColor: '#EEF2FF',
+		justifyContent: 'center',
+		alignItems: 'center',
 	},
 
 	devisNum:    { fontSize: 15, fontWeight: '600', color: C.text },
-	devisClient: { fontSize: 13, color: C.sub, marginTop: 2 },
+	devisClient: { fontSize: 13, color: C.sub, marginTop: 3 },
+	metaRow: {
+		marginTop: 6,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 5,
+	},
+	metaText: { fontSize: 12, color: C.sub },
 	devisAmount: { fontSize: 14, fontWeight: '600', color: C.text },
 
 	chip: {
-		paddingVertical: 2,
+		paddingVertical: 3,
 		paddingHorizontal: 8,
-		borderRadius: 5,
+		borderRadius: 999,
 	},
 	chipText: { fontSize: 11, fontWeight: '600' },
 
 	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-	empty: { alignItems: 'center', paddingTop: 60, gap: 6 },
-	emptyTitle: { fontSize: 17, fontWeight: '600', color: C.text },
+	empty: { alignItems: 'center', paddingTop: 64, gap: 6 },
+	emptyTitle: { fontSize: 17, fontWeight: '700', color: C.text },
 	emptySub:   { fontSize: 14, color: C.sub },
+
+	archiveBtn: {
+		backgroundColor: C.accent,
+		paddingVertical: 14,
+		paddingHorizontal: 20,
+		borderRadius: 12,
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginHorizontal: 16,
+		marginBottom: 16,
+		marginTop: 8,
+		flexDirection: 'row',
+		gap: 8,
+	},
+	archiveBtnText: {
+		color: '#fff',
+		fontSize: 15,
+		fontWeight: '700',
+	},
     
-});
-const styles = StyleSheet.create({
-  archiveBtn: {
-    backgroundColor: '#185FA5',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  archiveBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
 });
