@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
 	View,
 	Text,
@@ -11,1004 +11,669 @@ import {
 	Modal,
 	FlatList,
 	SafeAreaView,
-	Platform,
-	KeyboardAvoidingView,
-	Button
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
 
 const C = {
-	bg:     '#F2F2F7',
-	white:  '#FFFFFF',
-	border: '#E5E5EA',
-	text:   '#000000',
-	sub:    '#8E8E93',
+	bg: '#F2F2F7',
+	white: '#FFFFFF',
 	accent: '#4F46E5',
+	text: '#1C1C1E',
+	sub: '#8E8E93',
+	border: '#E5E5EA',
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const toISO  = d => `${d.getFullYear()}-${`${d.getMonth()+1}`.padStart(2,'0')}-${`${d.getDate()}`.padStart(2,'0')}`;
-const toDisp = d => `${`${d.getDate()}`.padStart(2,'0')}/${`${d.getMonth()+1}`.padStart(2,'0')}/${d.getFullYear()}`;
-const calcLigne = l => (parseFloat(l.quantite)||0) * (parseFloat(l.prix_unitaire)||0) * (1 - (parseFloat(l.remise)||0)/100);
+const SHADOW = {
+	shadowColor: '#000',
+	shadowOpacity: 0.06,
+	shadowRadius: 8,
+	shadowOffset: { width: 0, height: 3 },
+	elevation: 2,
+};
 
-// ─── Date picker modal ────────────────────────────────────────────────────────
-function DateModal({ visible, date, onConfirm, onCancel }) {
-	const [tmp, setTmp] = useState(date);
-	useEffect(() => { if (visible) setTmp(date); }, [visible]);
-	if (!visible) return null;
+const toISO = (d) => `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`;
 
-	if (Platform.OS === 'android') {
-		return (
-			<DateTimePicker
-				value={tmp}
-				mode="date"
-				display="default"
-				onChange={(e, d) => e.type === 'set' && d ? onConfirm(d) : onCancel()}
-			/>
-		);
-	}
-	return (
-		<Modal visible transparent animationType="slide">
-			<View style={s.dateOverlay}>
-				<View style={s.dateSheet}>
-					<View style={s.dateSheetBar}>
-						<TouchableOpacity onPress={onCancel}>
-							<Text style={s.dateCancel}>Annuler</Text>
-						</TouchableOpacity>
-						<TouchableOpacity onPress={() => onConfirm(tmp)}>
-							<Text style={s.dateConfirm}>Confirmer</Text>
-						</TouchableOpacity>
-					</View>
-					<DateTimePicker
-						value={tmp}
-						mode="date"
-						display="inline"
-						accentColor={C.accent}
-						themeVariant="light"
-						onChange={(_, d) => d && setTmp(d)}
-						style={{ width: '100%' }}
-					/>
-				</View>
-			</View>
-		</Modal>
-	);
-}
+const calcLigne = (line) => {
+	const q = Number(line.quantite || 0);
+	const p = Number(line.prix_unitaire || 0);
+	const r = Number(line.remise || 0);
+	return q * p * (1 - r / 100);
+};
 
-// ─── Picker sheet ─────────────────────────────────────────────────────────────
-function PickerSheet({ visible, title, data, renderItem, onClose }) {
-	return (
-		<Modal visible={visible} transparent animationType="slide">
-			<View style={s.sheetOverlay}>
-				<View style={s.sheet}>
-					<View style={s.sheetBar}>
-						<Text style={s.sheetTitle}>{title}</Text>
-						<TouchableOpacity onPress={onClose}>
-							<Text style={s.sheetClose}>Fermer</Text>
-						</TouchableOpacity>
-					</View>
-					<FlatList
-						data={data}
-						keyExtractor={item => item.id.toString()}
-						renderItem={({ item }) => renderItem(item)}
-						showsVerticalScrollIndicator={false}
-						ListEmptyComponent={<Text style={s.emptyText}>Aucun element</Text>}
-					/>
-				</View>
-			</View>
-		</Modal>
-	);
-}
+const makeLine = () => ({
+	produit_id: '',
+	nom: '',
+	description: '',
+	quantite: '1',
+	prix_unitaire: '',
+	remise: '0',
+});
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Create({ navigation }) {
-	const [clientId, setClientId]   = useState('');
-	const [dateEm, setDateEm]       = useState(new Date());
-	const [dateVal, setDateVal]     = useState(() => { const d = new Date(); d.setDate(d.getDate()+30); return d; });
-	const [lignes, setLignes]       = useState([{ produit_id:'', nom:'', description:'', quantite:'1', prix:'', remise:'0' }]);
-	const [clients, setClients]     = useState([]);
-	const [produits, setProduits]   = useState([]);
-	const [loadingRefs, setLoadingRefs] = useState(true);
-	const [submitting, setSubmitting]   = useState(false);
-	const [dateTarget, setDateTarget]   = useState(null);
-	const [showClients, setShowClients] = useState(false);
-	const [showProduits, setShowProduits] = useState(false);
-	const [activeLine, setActiveLine]   = useState(0);
-	const [clientMode, setClientMode]   = useState('picker');
+	const [step, setStep] = useState(1);
+	const [clientId, setClientId] = useState('');
+	const [clients, setClients] = useState([]);
+	const [produits, setProduits] = useState([]);
+	const [lignes, setLignes] = useState([makeLine()]);
+
 	const [clientQuery, setClientQuery] = useState('');
-	const [nomClient, setNomClient]     = useState('');
-	const [emailClient, setEmailClient] = useState('');
-	const [telClient, setTelClient]     = useState('');
-	const [savingClient, setSavingClient] = useState(false);
-	const [showAddButton,setShowAdd] = useState(false);
 	const [productQuery, setProductQuery] = useState('');
+	const [showProductModal, setShowProductModal] = useState(false);
+	const [activeLine, setActiveLine] = useState(0);
+	const [showClientForm, setShowClientForm] = useState(false);
+	const [savingClient, setSavingClient] = useState(false);
+	const [clientNom, setClientNom] = useState('');
+	const [clientEmail, setClientEmail] = useState('');
+	const [clientTel, setClientTel] = useState('');
+	const [showProductForm, setShowProductForm] = useState(false);
 	const [savingProduct, setSavingProduct] = useState(false);
-	const [productMode, setProductMode] = useState('picker');
-	const [nomProduit, setNomProduit] = useState('');
-	const [prixProduit, setPrixProduit] = useState('');
-	const [descriptionProduit, setDescriptionProduit] = useState('');
-	const [uniteProduit, setUniteProduit] = useState('Piece');
-	const [showUnitePicker, setShowUnitePicker] = useState(false);
+	const [productLibelle, setProductLibelle] = useState('');
+	const [productPrix, setProductPrix] = useState('');
+	const [productDescription, setProductDescription] = useState('');
+	const [productUnite, setProductUnite] = useState('unite');
 
-	const uniteOptions = [
-		{ label: 'piece', value: 'unite' },
-		{ label: 'Kg', value: 'kg' },
-		{ label: 'litre', value: 'litre' },
-		{ label: 'metre', value: 'metre' },
-		
-	];
+	const [loadingRefs, setLoadingRefs] = useState(true);
+	const [saving, setSaving] = useState(false);
 
-	const client = clients.find(c => String(c.id) === String(clientId));
-	const totalHT  = lignes.reduce((sum, l) => sum + calcLigne({ quantite: l.quantite, prix_unitaire: l.prix, remise: l.remise }), 0);
+	const client = clients.find((c) => String(c.id) === String(clientId));
+	const totalHT = useMemo(() => lignes.reduce((sum, l) => sum + calcLigne(l), 0), [lignes]);
 	const totalTTC = totalHT * 1.2;
+
+	const filteredClients = useMemo(() => {
+		const q = clientQuery.trim().toLowerCase();
+		if (!q) return clients;
+		return clients.filter((c) => String(c.nom || '').toLowerCase().includes(q) || String(c.email || '').toLowerCase().includes(q));
+	}, [clientQuery, clients]);
+
+	const filteredProduits = useMemo(() => {
+		const q = productQuery.trim().toLowerCase();
+		if (!q) return produits;
+		return produits.filter((p) => String(p.libelle || '').toLowerCase().includes(q));
+	}, [productQuery, produits]);
 
 	useEffect(() => {
 		(async () => {
 			setLoadingRefs(true);
 			try {
 				const token = await AsyncStorage.getItem('token');
-				const h = { Authorization: `Bearer ${token}` };
+				const headers = { Authorization: `Bearer ${token}` };
 				const [cr, pr] = await Promise.all([
-					axios.get(`${API_BASE_URL}/clients`, { headers: h }),
-					axios.get(`${API_BASE_URL}/produits`, { headers: h }),
+					axios.get(`${API_BASE_URL}/clients`, { headers }),
+					axios.get(`${API_BASE_URL}/produits`, { headers }),
 				]);
 				setClients(Array.isArray(cr.data) ? cr.data : []);
 				setProduits(Array.isArray(pr.data) ? pr.data : []);
-			} catch { Alert.alert('Erreur', 'Chargement impossible.'); }
-			finally { setLoadingRefs(false); }
+			} catch {
+				Alert.alert('Erreur', 'Chargement des données impossible.');
+			} finally {
+				setLoadingRefs(false);
+			}
 		})();
 	}, []);
 
-	const setLigne = (i, key, val) =>
-		setLignes(prev => prev.map((l, idx) => idx === i ? { ...l, [key]: val } : l));
-
-	const closeClientModal = () => {
-		setShowClients(false);
-		setClientMode('picker');
-		setClientQuery('');
+	const setLigne = (index, key, value) => {
+		setLignes((prev) => prev.map((line, i) => (i === index ? { ...line, [key]: value } : line)));
 	};
 
-	const closeProductModal = () => {
-		setShowProduits(false);
-		setProductMode('picker');
-		setProductQuery('');
+	const canGoStep2 = Boolean(clientId);
+	const canGoStep3 = lignes.length > 0 && lignes.every((l) => l.nom && Number(l.quantite) > 0 && Number(l.prix_unitaire) > 0);
+
+	const nextStep = () => {
+		if (step === 1 && !canGoStep2) {
+			Alert.alert('Client requis', 'Choisissez un client pour continuer.');
+			return;
+		}
+		if (step === 2 && !canGoStep3) {
+			Alert.alert('Lignes incomplètes', 'Ajoutez au moins une ligne complète.');
+			return;
+		}
+		setStep((s) => Math.min(3, s + 1));
 	};
 
-	const saveProduitForm = async () => {
-		if (savingProduct) return;
-		if (!nomProduit.trim()) {
-			Alert.alert('Produit', 'Le nom du produit est requis.');
+	const submit = async () => {
+		if (!canGoStep2 || !canGoStep3) {
+			Alert.alert('Vérification', 'Vérifiez le client et les lignes du devis.');
 			return;
 		}
-		if (!prixProduit.trim()) {
-			Alert.alert('Produit', 'Le prix du produit est requis.');
-			return;
-		}
+
+		setSaving(true);
 		try {
-			setSavingProduct(true);
 			const token = await AsyncStorage.getItem('token');
+			const dateEm = new Date();
+			const dateVal = new Date();
+			dateVal.setDate(dateVal.getDate() + 30);
 
-			const res = await axios.post(
-				`${API_BASE_URL}/produits`,
+			await axios.post(
+				`${API_BASE_URL}/devis`,
 				{
-					libelle: nomProduit.trim(),
-					description: descriptionProduit.trim() || null,
-					prix_unitaire: parseFloat(prixProduit.trim()),
-					unite: uniteProduit.trim(),
+					client_id: Number(clientId),
+					date_emission: toISO(dateEm),
+					date_validite: toISO(dateVal),
+					lignes: lignes.map((l) => ({
+						produit_id: l.produit_id ? Number(l.produit_id) : null,
+						description: l.description || l.nom,
+						quantite: Number(l.quantite),
+						prix_unitaire: Number(l.prix_unitaire),
+						remise: Number(l.remise || 0),
+					})),
 				},
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				}
+				{ headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
 			);
 
-			const createdProduit = res?.data;
-			if (!createdProduit?.id) {
-				Alert.alert('Erreur', 'Produit créé mais ID invalide reçu.');
-				return;
-			}
-
-			setProduits(prev => {
-				const exists = prev.some(p => String(p.id) === String(createdProduit.id));
-				if (exists) return prev;
-				return [createdProduit, ...prev];
-			});
-
-			setLigne(activeLine, 'produit_id', String(createdProduit.id));
-			setLigne(activeLine, 'nom', createdProduit.libelle);
-			setLigne(activeLine, 'prix', String(createdProduit.prix_unitaire));
-			if (!lignes[activeLine]?.description)
-				setLigne(activeLine, 'description', createdProduit.description || createdProduit.libelle);
-
-			setNomProduit('');
-			setPrixProduit('');
-			setDescriptionProduit('');
-			setUniteProduit('Piece');
-			closeProductModal();
-		} catch (error) {
-			console.log('error:', error?.response?.data);
-			const apiErrors = error?.response?.data?.errors;
-			if (apiErrors) {
-				const firstError = Object.values(apiErrors)?.[0]?.[0];
-				Alert.alert('Validation', firstError || 'Données produit invalides.');
-			} else {
-				Alert.alert('Erreur', 'Impossible de sauvegarder le produit.');
-			}
+			Alert.alert('Succès', 'Devis créé avec succès.', [{ text: 'OK', onPress: () => navigation.replace('Dash') }]);
+		} catch (e) {
+			if (e?.response?.status === 422) Alert.alert('Validation', 'Vérifiez les informations saisies.');
+			else Alert.alert('Erreur', 'Impossible de créer le devis.');
 		} finally {
-			setSavingProduct(false);
+			setSaving(false);
 		}
 	};
-
-	const filteredClients = clients.filter(item => {
-		const q = clientQuery.trim().toLowerCase();
-		if (!q) return true;
-		const nom = String(item?.nom || '').toLowerCase();
-		const email = String(item?.email || '').toLowerCase();
-		return nom.includes(q) || email.includes(q);
-	});
-
-	const filteredProduits = produits.filter(item => {
-		const q = productQuery.trim().toLowerCase();
-		if (!q) return true;
-		const libelle = String(item?.libelle || '').toLowerCase();
-		const description = String(item?.description || '').toLowerCase();
-		return libelle.includes(q) || description.includes(q);
-	});
 
 	const saveClientForm = async () => {
 		if (savingClient) return;
-		if (!nomClient.trim()) {
+		if (!clientNom.trim()) {
 			Alert.alert('Client', 'Le nom du client est requis.');
 			return;
 		}
+		setSavingClient(true);
 		try {
-			setSavingClient(true);
 			const token = await AsyncStorage.getItem('token');
-
-			const res = await axios.post(
+			const response = await axios.post(
 				`${API_BASE_URL}/clients`,
 				{
-					nom: nomClient.trim(),
-					email: emailClient.trim() || null,
-					telephone: telClient.trim() || null,
+					nom: clientNom.trim(),
+					email: clientEmail.trim() || null,
+					telephone: clientTel.trim() || null,
 					adresse: null,
 				},
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				}
+				{ headers: { Authorization: `Bearer ${token}` } }
 			);
 
-			const createdClient = res?.data;
-			if (!createdClient?.id) {
-				Alert.alert('Erreur', 'Client créé mais ID invalide reçu.');
+			const created = response?.data;
+			if (!created?.id) {
+				Alert.alert('Erreur', 'Client créé mais ID invalide.');
 				return;
 			}
 
-			setClients(prev => {
-				const exists = prev.some(c => String(c.id) === String(createdClient.id));
-				if (exists) return prev;
-				return [createdClient, ...prev];
-			});
-
-			setClientId(String(createdClient.id));
-			setNomClient('');
-			setEmailClient('');
-			setTelClient('');
-			closeClientModal();
+			setClients((prev) => [created, ...prev]);
+			setClientId(String(created.id));
+			setClientNom('');
+			setClientEmail('');
+			setClientTel('');
+			setShowClientForm(false);
 		} catch (error) {
-			console.log('error:', error?.response?.data);
 			const apiErrors = error?.response?.data?.errors;
 			if (apiErrors) {
 				const firstError = Object.values(apiErrors)?.[0]?.[0];
 				Alert.alert('Validation', firstError || 'Données client invalides.');
 			} else {
-				Alert.alert('Erreur', 'Impossible de sauvegarder le client.');
+				Alert.alert('Erreur', 'Impossible de créer le client.');
 			}
 		} finally {
 			setSavingClient(false);
 		}
 	};
 
-	const submit = async () => {
-		if (!clientId) { Alert.alert('Client requis'); return; }
-		if (lignes.some(l => !l.nom || !l.quantite || !l.prix)) {
-			Alert.alert('Lignes incompletes', 'Produit, quantite et prix requis.');
+	const saveProductForm = async () => {
+		if (savingProduct) return;
+		if (!productLibelle.trim()) {
+			Alert.alert('Produit', 'Le nom du produit est requis.');
 			return;
 		}
-		setSubmitting(true);
+		if (!productPrix.trim()) {
+			Alert.alert('Produit', 'Le prix est requis.');
+			return;
+		}
+
+		setSavingProduct(true);
 		try {
 			const token = await AsyncStorage.getItem('token');
-			await axios.post(`${API_BASE_URL}/devis`, {
-				client_id: Number(clientId),
-				date_emission: toISO(dateEm),
-				date_validite: toISO(dateVal),
-				lignes: lignes.map(l => ({
-					produit_id:   l.produit_id ? Number(l.produit_id) : null,
-					description:  l.description || l.nom,
-					quantite:     Number(l.quantite),
-					prix_unitaire:Number(l.prix),
-					remise:       Number(l.remise || 0),
-				})),
-			}, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
+			const response = await axios.post(
+				`${API_BASE_URL}/produits`,
+				{
+					libelle: productLibelle.trim(),
+					description: productDescription.trim() || null,
+					prix_unitaire: Number(productPrix),
+					unite: productUnite.trim() || 'unite',
+				},
+				{ headers: { Authorization: `Bearer ${token}` } }
+			);
 
-			Alert.alert('Devis cree', 'Enregistre avec succes.', [
-				{ text: 'OK', onPress: () => navigation.replace('Dash') },
-			]);
-		} catch (e) {
-			if (e?.response?.status === 422) Alert.alert('Validation', 'Verifiez les champs.');
-			else Alert.alert('Erreur', 'Impossible de creer le devis.');
+			const created = response?.data;
+			if (!created?.id) {
+				Alert.alert('Erreur', 'Produit créé mais ID invalide.');
+				return;
+			}
+
+			setProduits((prev) => [created, ...prev]);
+			setLigne(activeLine, 'produit_id', String(created.id));
+			setLigne(activeLine, 'nom', created.libelle || `Produit ${created.id}`);
+			setLigne(activeLine, 'prix_unitaire', String(created.prix_unitaire || ''));
+			setLigne(activeLine, 'description', created.description || '');
+			setProductLibelle('');
+			setProductPrix('');
+			setProductDescription('');
+			setProductUnite('unite');
+			setShowProductForm(false);
+			setShowProductModal(false);
+		} catch (error) {
+			const apiErrors = error?.response?.data?.errors;
+			if (apiErrors) {
+				const firstError = Object.values(apiErrors)?.[0]?.[0];
+				Alert.alert('Validation', firstError || 'Données produit invalides.');
+			} else {
+				Alert.alert('Erreur', 'Impossible de créer le produit.');
+			}
 		} finally {
-			setSubmitting(false);
+			setSavingProduct(false);
 		}
 	};
 
 	return (
 		<SafeAreaView style={s.safe}>
-
-			{/* Header */}
 			<View style={s.header}>
-				<TouchableOpacity onPress={() => navigation.replace('Dash')}>
-					<Text style={s.back}>Retour</Text>
+				<TouchableOpacity style={s.backBtn} onPress={() => navigation.replace('Dash')}>
+					<Text style={s.backTxt}>← Retour</Text>
 				</TouchableOpacity>
-				<Text style={s.headerTitle}>Nouveau devis</Text>
-				<View style={{ width: 55 }} />
+				<Text style={s.title}>Nouveau devis</Text>
 			</View>
 
-			<ScrollView style={{ flex: 1 }} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+			<View style={s.stepsRow}>
+				<View style={[s.stepPill, step >= 1 && s.stepPillActive]}><Text style={[s.stepTxt, step >= 1 && s.stepTxtActive]}>1. Client</Text></View>
+				<View style={[s.stepPill, step >= 2 && s.stepPillActive]}><Text style={[s.stepTxt, step >= 2 && s.stepTxtActive]}>2. Lignes</Text></View>
+				<View style={[s.stepPill, step >= 3 && s.stepPillActive]}><Text style={[s.stepTxt, step >= 3 && s.stepTxtActive]}>3. Confirmation</Text></View>
+			</View>
 
-				{/* Client */}
-				<Text style={s.sectionLabel}>Client</Text>
-				<View style={s.group}>
-					<TouchableOpacity style={s.row} onPress={() => setShowClients(true)} disabled={loadingRefs}>
-						<Text style={s.rowLabel}>Client</Text>
-
-						{loadingRefs
-							? <ActivityIndicator size="small" color={C.sub} />
-							: <Text style={[s.rowValue, !client && { color: C.sub }]} numberOfLines={1}>
-									{client ? client.nom : 'Choisir...'}
-								</Text>
-						}
-					</TouchableOpacity>
-				</View>
-
-				{/* Dates */}
-				<Text style={s.sectionLabel}>Dates</Text>
-				<View style={s.group}>
-					<TouchableOpacity style={s.row} onPress={() => setDateTarget('em')}>
-						<Text style={s.rowLabel}>Date d'emission</Text>
-						<Text style={s.rowValue}>{toDisp(dateEm)}</Text>
-					</TouchableOpacity>
-					<View style={s.rowSep} />
-					<TouchableOpacity style={s.row} onPress={() => setDateTarget('val')}>
-						<Text style={s.rowLabel}>Date de validite</Text>
-						<Text style={s.rowValue}>{toDisp(dateVal)}</Text>
-					</TouchableOpacity>
-				</View>
-
-				{/* Lignes */}
-				<View style={s.sectionRow}>
-					<Text style={s.sectionLabel}>Produits</Text>
-					<TouchableOpacity onPress={() =>
-						setLignes(p => [...p, { produit_id:'', nom:'', description:'', quantite:'1', prix:'', remise:'0' }])
-					}>
-						<Text style={s.addText}>+ Ajouter</Text>
-					</TouchableOpacity>
-				</View>
-
-				{lignes.map((ligne, i) => (
-					<View key={i} style={[s.group, { marginBottom: 10 }]}>
-						{/* Produit selector */}
-						<TouchableOpacity style={s.row} onPress={() => { setActiveLine(i); setShowProduits(true); setShowAdd(true) }} disabled={loadingRefs}>
-							<Text style={s.rowLabel}>Produit</Text>
-							<Text style={[s.rowValue, !ligne.nom && { color: C.sub }]} numberOfLines={1}>
-								{ligne.nom || 'Choisir...'}
-								
-							</Text>
-						</TouchableOpacity>
-						<View style={s.rowSep} />
-						{/* Description */}
-						<View style={s.row}>
-							
-							<Text style={s.rowLabel}>Description</Text>
-							<TextInput
-								style={s.rowInput}
-								placeholder="Optionnel"
-								placeholderTextColor={C.sub}
-								value={ligne.description}
-								onChangeText={v => setLigne(i, 'description', v)}
-							/>
-						</View>
-						<View style={s.rowSep} />
-						{/* Qty + Price */}
-						<View style={s.row}>
-							<Text style={s.rowLabel}>Quantite</Text>
-							<TextInput
-								style={s.rowInput}
-								keyboardType="numeric"
-								placeholder="1"
-								placeholderTextColor={C.sub}
-								value={ligne.quantite}
-								onChangeText={v => setLigne(i, 'quantite', v)}
-							/>
-						</View>
-						<View style={s.rowSep} />
-						<View style={s.row}>
-							<Text style={s.rowLabel}>Prix unitaire</Text>
-							<TextInput
-								style={s.rowInput}
-								keyboardType="numeric"
-								placeholder="0.00"
-								placeholderTextColor={C.sub}
-								value={ligne.prix}
-								onChangeText={v => setLigne(i, 'prix', v)}
-							/>
-						</View>
-						<View style={s.rowSep} />
-						<View style={s.row}>
-							<Text style={s.rowLabel}>Remise (%)</Text>
-							<TextInput
-								style={s.rowInput}
-								keyboardType="numeric"
-								placeholder="0"
-								placeholderTextColor={C.sub}
-								value={ligne.remise}
-								onChangeText={v => setLigne(i, 'remise', v)}
-							/>
-						</View>
-						{/* Subtotal */}
-						<View style={s.rowSep} />
-						<View style={[s.row, { backgroundColor: C.bg }]}>
-							<Text style={s.rowLabel}>Sous-total</Text>
-							<Text style={[s.rowValue, { color: C.accent, fontWeight: '600' }]}>
-								{calcLigne({ quantite: ligne.quantite, prix_unitaire: ligne.prix, remise: ligne.remise }).toFixed(2)} MAD
-							</Text>
-						</View>
-						{/* Remove */}
-						{lignes.length > 1 && (
+			<ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+				{step === 1 && (
+					<View style={s.card}>
+						<Text style={s.cardTitle}>Choisir un client</Text>
+						<TextInput
+							style={s.search}
+							placeholder="Rechercher par nom ou email"
+							placeholderTextColor={C.sub}
+							value={clientQuery}
+							onChangeText={setClientQuery}
+						/>
+						{loadingRefs ? (
+							<ActivityIndicator color={C.accent} style={{ marginTop: 10 }} />
+						) : (
 							<>
-								<View style={s.rowSep} />
-								<TouchableOpacity style={s.row} onPress={() => setLignes(p => p.filter((_,idx) => idx !== i))}>
-									<Text style={{ color: '#FF3B30', fontSize: 15 }}>Supprimer</Text>
-								</TouchableOpacity>
-							</>
-						)}
-					</View>
-				))}
-
-				{/* Totals */}
-				<View style={s.group}>
-					<View style={s.row}>
-						<Text style={s.rowLabel}>Total HT</Text>
-						<Text style={s.rowValue}>{totalHT.toFixed(2)} MAD</Text>
-					</View>
-					<View style={s.rowSep} />
-					<View style={s.row}>
-						<Text style={s.rowLabel}>TVA (20%)</Text>
-						<Text style={s.rowValue}>{(totalTTC - totalHT).toFixed(2)} MAD</Text>
-					</View>
-					<View style={s.rowSep} />
-					<View style={s.row}>
-						<Text style={[s.rowLabel, { fontWeight: '700', color: C.text }]}>Total TTC</Text>
-						<Text style={[s.rowValue, { color: C.accent, fontWeight: '700', fontSize: 16 }]}>
-							{totalTTC.toFixed(2)} MAD
-						</Text>
-					</View>
-				</View>
-
-				{/* Submit */}
-				<TouchableOpacity
-					style={[s.btn, submitting && { opacity: 0.6 }]}
-					onPress={submit}
-					disabled={submitting}
-				>
-					{submitting
-						? <ActivityIndicator color="#fff" />
-						: <Text style={s.btnText}>Creer le devis</Text>
-					}
-				</TouchableOpacity>
-
-				<View style={{ height: 30 }} />
-			</ScrollView>
-
-			{/* Date modal */}
-			<DateModal
-				visible={dateTarget !== null}
-				date={dateTarget === 'em' ? dateEm : dateVal}
-				onConfirm={d => {
-					dateTarget === 'em' ? setDateEm(d) : setDateVal(d);
-					setDateTarget(null);
-				}}
-				onCancel={() => setDateTarget(null)}
-			/>
-
-			{/* Client picker + form */}
-			<Modal visible={showClients} transparent animationType="slide">
-				<KeyboardAvoidingView
-					style={s.sheetOverlay}
-					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-					keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
-				>
-					<View style={[s.sheet, clientMode === 'form' && s.sheetFormMode]}>
-						<View style={s.clientSheetHeader}>
-							{clientMode === 'form' ? (
-								<TouchableOpacity onPress={() => setClientMode('picker')}>
-									<Ionicons name="arrow-back" size={20} color={C.text} />
-								</TouchableOpacity>
-							) : <View style={{ width: 20 }} />}
-
-							<Text style={s.sheetTitle}>
-								{clientMode === 'picker' ? 'Choisir un client' : 'Nouveau client'}
-							</Text>
-
-							<TouchableOpacity onPress={closeClientModal}>
-								<Ionicons name="close" size={20} color={C.text} />
-							</TouchableOpacity>
-						</View>
-
-						{clientMode === 'picker' ? (
-							<>
-								<View style={s.searchWrap}>
-									<Ionicons name="search" size={16} color={C.sub} />
-									<TextInput
-										style={s.searchInput}
-										placeholder="Rechercher par nom ou email"
-										placeholderTextColor={C.sub}
-										value={clientQuery}
-										onChangeText={setClientQuery}
-										autoCapitalize="none"
-									/>
-								</View>
-
 								<FlatList
 									data={filteredClients}
-									keyExtractor={item => item.id.toString()}
+									keyExtractor={(item) => String(item.id)}
+									scrollEnabled={false}
 									renderItem={({ item }) => (
 										<TouchableOpacity
-											style={s.clientRow}
-											onPress={() => {
-												setClientId(String(item.id));
-												closeClientModal();
-											}}
+											style={[s.itemRow, String(clientId) === String(item.id) && s.itemRowActive]}
+											onPress={() => setClientId(String(item.id))}
 										>
-											<View style={{ flex: 1 }}>
-												<Text style={s.clientName}>{item.nom}</Text>
-												{!!item.email && <Text style={s.clientMeta}>{item.email}</Text>}
-											</View>
-											<Ionicons name="chevron-forward" size={16} color={C.sub} />
+											<Text style={s.itemMain}>{item.nom}</Text>
+											{!!item.email && <Text style={s.itemSub}>{item.email}</Text>}
 										</TouchableOpacity>
 									)}
-									showsVerticalScrollIndicator={false}
-									ListEmptyComponent={<Text style={s.emptyText}>Aucun client trouvé</Text>}
+									ListEmptyComponent={<Text style={s.empty}>Aucun client trouvé.</Text>}
 								/>
 
-								<TouchableOpacity style={s.addBtn} onPress={() => setClientMode('form')}>
-									<Ionicons name="person-add-outline" size={18} color="#fff" />
-									<Text style={s.addBtnText}>Ajouter un client</Text>
+								<TouchableOpacity style={s.addInlineBtn} onPress={() => setShowClientForm((p) => !p)}>
+									<Text style={s.addInlineBtnTxt}>{showClientForm ? 'Annuler' : '+ Ajouter un client'}</Text>
 								</TouchableOpacity>
+
+								{showClientForm && (
+									<View style={s.inlineForm}>
+										<TextInput style={s.input} placeholder="Nom du client" placeholderTextColor={C.sub} value={clientNom} onChangeText={setClientNom} />
+										<TextInput style={s.input} placeholder="Email (optionnel)" placeholderTextColor={C.sub} value={clientEmail} onChangeText={setClientEmail} autoCapitalize="none" keyboardType="email-address" />
+										<TextInput style={s.input} placeholder="Téléphone (optionnel)" placeholderTextColor={C.sub} value={clientTel} onChangeText={setClientTel} keyboardType="phone-pad" />
+										<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingClient && { opacity: 0.7 }]} onPress={saveClientForm} disabled={savingClient}>
+											{savingClient ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le client</Text>}
+										</TouchableOpacity>
+									</View>
+								)}
 							</>
-						) : (
-							<ScrollView
-								style={s.formScroll}
-								contentContainerStyle={s.form}
-								keyboardShouldPersistTaps="handled"
-								showsVerticalScrollIndicator={false}
-							>
-								<TextInput
-									style={s.input}
-									placeholder="Nom du client"
-									placeholderTextColor={C.sub}
-									value={nomClient}
-									onChangeText={setNomClient}
-								/>
-								<TextInput
-									style={s.input}
-									placeholder="Email"
-									placeholderTextColor={C.sub}
-									value={emailClient}
-									onChangeText={setEmailClient}
-									autoCapitalize="none"
-									keyboardType="email-address"
-								/>
-								<TextInput
-									style={s.input}
-									placeholder="Telephone"
-									placeholderTextColor={C.sub}
-									value={telClient}
-									onChangeText={setTelClient}
-									keyboardType="phone-pad"
-								/>
-								<TouchableOpacity
-									style={[s.addBtn, savingClient && { opacity: 0.6 }]}
-									onPress={saveClientForm}
-									disabled={savingClient}
-								>
-									{savingClient
-										? <ActivityIndicator color="#fff" />
-										: <Text style={s.addBtnText}>Enregistrer</Text>
-									}
-								</TouchableOpacity>
-							</ScrollView>
 						)}
 					</View>
-				</KeyboardAvoidingView>
-			</Modal>
+				)}
 
-			{/* Produit picker + form */}
-			<Modal visible={showProduits} transparent animationType="slide">
-				<KeyboardAvoidingView
-					style={s.sheetOverlay}
-					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-					keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
-				>
-					<View style={[s.sheet, productMode === 'form' && s.sheetFormMode]}>
-						<View style={s.clientSheetHeader}>
-							{productMode === 'form' ? (
-								<TouchableOpacity onPress={() => setProductMode('picker')}>
-									<Ionicons name="arrow-back" size={20} color={C.text} />
-								</TouchableOpacity>
-							) : <View style={{ width: 20 }} />}
-
-							<Text style={s.sheetTitle}>
-								{productMode === 'picker' ? 'Choisir un produit' : 'Nouveau produit'}
-							</Text>
-
-							<TouchableOpacity onPress={closeProductModal}>
-								<Ionicons name="close" size={20} color={C.text} />
+				{step === 2 && (
+					<View style={s.card}>
+						<View style={s.rowBetween}>
+							<Text style={s.cardTitle}>Ajouter les produits</Text>
+							<TouchableOpacity style={s.linkBtn} onPress={() => setLignes((p) => [...p, makeLine()])}>
+								<Text style={s.linkBtnTxt}>+ Ligne</Text>
 							</TouchableOpacity>
 						</View>
 
-						{productMode === 'picker' ? (
-							<>
-								<View style={s.searchWrap}>
-									<Ionicons name="search" size={16} color={C.sub} />
+						{lignes.map((line, index) => (
+							<View key={index} style={s.lineCard}>
+								<TouchableOpacity style={s.select} onPress={() => { setActiveLine(index); setShowProductModal(true); }}>
+									<Text style={s.selectLabel}>Produit</Text>
+									<Text style={s.selectValue}>{line.nom || 'Choisir un produit'}</Text>
+								</TouchableOpacity>
+
+								<View style={s.qtyRow}>
+									<TouchableOpacity style={s.qtyBtn} onPress={() => setLigne(index, 'quantite', String(Math.max(1, Number(line.quantite || 1) - 1)))}>
+										<Text style={s.qtyBtnTxt}>−</Text>
+									</TouchableOpacity>
 									<TextInput
-										style={s.searchInput}
-										placeholder="Rechercher par nom ou description"
-										placeholderTextColor={C.sub}
-										value={productQuery}
-										onChangeText={setProductQuery}
-										autoCapitalize="none"
+										style={s.qtyInput}
+										value={line.quantite}
+										onChangeText={(v) => setLigne(index, 'quantite', v.replace(/[^0-9]/g, '') || '1')}
+										keyboardType="numeric"
 									/>
+									<TouchableOpacity style={s.qtyBtn} onPress={() => setLigne(index, 'quantite', String(Number(line.quantite || 1) + 1))}>
+										<Text style={s.qtyBtnTxt}>+</Text>
+									</TouchableOpacity>
 								</View>
 
-								<FlatList
-									data={filteredProduits}
-									keyExtractor={item => item.id.toString()}
-									renderItem={({ item }) => (
-										<TouchableOpacity
-											style={s.clientRow}
-											onPress={() => {
-												setLigne(activeLine, 'produit_id', String(item.id));
-												setLigne(activeLine, 'nom', item.libelle);
-												setLigne(activeLine, 'prix', String(item.prix_unitaire || ''));
-												if (!lignes[activeLine]?.description)
-													setLigne(activeLine, 'description', item.description || item.libelle);
-												closeProductModal();
-											}}
-										>
-											<View style={{ flex: 1 }}>
-												<Text style={s.clientName}>{item.libelle}</Text>
-												{!!item.description && <Text style={s.clientMeta}>{item.description}</Text>}
-												<Text style={[s.clientMeta, { marginTop: 4 }]}>{item.prix_unitaire} MAD · {item.unite}</Text>
-											</View>
-											<Ionicons name="chevron-forward" size={16} color={C.sub} />
-										</TouchableOpacity>
-									)}
-									showsVerticalScrollIndicator={false}
-									ListEmptyComponent={<Text style={s.emptyText}>Aucun produit trouvé</Text>}
-								/>
-
-								<TouchableOpacity style={s.addBtn} onPress={() => setProductMode('form')}>
-									<Ionicons name="add-circle-outline" size={18} color="#fff" />
-									<Text style={s.addBtnText}>Ajouter un produit</Text>
-								</TouchableOpacity>
-							</>
-						) : (
-							<ScrollView
-								style={s.formScroll}
-								contentContainerStyle={s.form}
-								keyboardShouldPersistTaps="always"
-								showsVerticalScrollIndicator={false}
-							>
 								<TextInput
 									style={s.input}
-									placeholder="Nom du produit"
-									placeholderTextColor={C.sub}
-									value={nomProduit}
-									onChangeText={setNomProduit}
-								/>
-								<TextInput
-									style={s.input}
-									placeholder="Description"
-									placeholderTextColor={C.sub}
-									value={descriptionProduit}
-									onChangeText={setDescriptionProduit}
-								/>
-								<TextInput
-									style={s.input}
+									value={line.prix_unitaire}
+									onChangeText={(v) => setLigne(index, 'prix_unitaire', v.replace(',', '.'))}
+									keyboardType="decimal-pad"
 									placeholder="Prix unitaire"
 									placeholderTextColor={C.sub}
-									value={prixProduit}
-									onChangeText={setPrixProduit}
-									keyboardType="decimal-pad"
 								/>
-								<TouchableOpacity 
-									style={s.uniteButton} 
-									onPress={() => setShowUnitePicker(!showUnitePicker)} 
-									activeOpacity={0.7}
-								>
-									<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-										<Ionicons name="layers" size={16} color={C.sub} />
-										<Text style={[s.uniteButtonText, !uniteProduit && { color: C.sub }]}>
-											{uniteProduit || 'Sélectionner unité'}
-										</Text>
-									</View>
-									<Ionicons name={showUnitePicker ? 'chevron-up' : 'chevron-down'} size={16} color={C.sub} />
-								</TouchableOpacity>
-								{showUnitePicker && (
-									<View style={s.unitDropdown}>
-										{uniteOptions.map((option) => (
-											<TouchableOpacity
-												key={option.value}
-												style={[s.unitDropdownItem, uniteProduit === option.value && s.unitDropdownItemActive]}
-												onPress={() => {
-													setUniteProduit(option.value);
-													setShowUnitePicker(false);
-												}}
-											>
-												<View style={{ flex: 1 }}>
-													<Text style={[s.unitDropdownItemText, uniteProduit === option.value && s.unitDropdownItemTextActive]}>
-														{option.label}
-													</Text>
-												</View>
-												{uniteProduit === option.value && (
-													<Ionicons name="checkmark" size={16} color={C.accent} />
-												)}
-											</TouchableOpacity>
-										))}
-									</View>
+
+								<TextInput
+									style={s.input}
+									value={line.description}
+									onChangeText={(v) => setLigne(index, 'description', v)}
+									placeholder="Description (optionnel)"
+									placeholderTextColor={C.sub}
+								/>
+
+								{lignes.length > 1 && (
+									<TouchableOpacity style={s.removeBtn} onPress={() => setLignes((p) => p.filter((_, i) => i !== index))}>
+										<Text style={s.removeTxt}>Supprimer la ligne</Text>
+									</TouchableOpacity>
 								)}
+							</View>
+						))}
+					</View>
+				)}
+
+				{step === 3 && (
+					<View style={s.card}>
+						<Text style={s.cardTitle}>Confirmer le devis</Text>
+						<Text style={s.resumeLine}>Client: <Text style={s.resumeStrong}>{client?.nom || '-'}</Text></Text>
+						<Text style={s.resumeLine}>Nombre de lignes: <Text style={s.resumeStrong}>{lignes.length}</Text></Text>
+						<Text style={s.resumeLine}>Total HT: <Text style={s.resumeStrong}>{totalHT.toFixed(2)} MAD</Text></Text>
+						<Text style={s.resumeLine}>TVA (20%): <Text style={s.resumeStrong}>{(totalTTC - totalHT).toFixed(2)} MAD</Text></Text>
+						<Text style={s.totalTtc}>Total TTC: {totalTTC.toFixed(2)} MAD</Text>
+					</View>
+				)}
+			</ScrollView>
+
+			<View style={s.footerActions}>
+				{step > 1 && (
+					<TouchableOpacity style={s.ghostBtn} onPress={() => setStep((s) => Math.max(1, s - 1))}>
+						<Text style={s.ghostBtnTxt}>Précédent</Text>
+					</TouchableOpacity>
+				)}
+
+				{step < 3 ? (
+					<TouchableOpacity style={s.mainBtn} onPress={nextStep}>
+						<Text style={s.mainBtnTxt}>Continuer</Text>
+					</TouchableOpacity>
+				) : (
+					<TouchableOpacity style={[s.mainBtn, saving && { opacity: 0.7 }]} onPress={submit} disabled={saving}>
+						{saving ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Créer le devis</Text>}
+					</TouchableOpacity>
+				)}
+			</View>
+
+			<Modal visible={showProductModal} transparent animationType="slide">
+				<View style={s.modalOverlay}>
+					<View style={s.modalSheet}>
+						<View style={s.modalHeader}>
+							<Text style={s.modalTitle}>Choisir un produit</Text>
+							<TouchableOpacity onPress={() => setShowProductModal(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
+						</View>
+						<TextInput
+							style={s.search}
+							placeholder="Rechercher un produit"
+							placeholderTextColor={C.sub}
+							value={productQuery}
+							onChangeText={setProductQuery}
+						/>
+						<FlatList
+							data={filteredProduits}
+							keyExtractor={(item) => String(item.id)}
+							renderItem={({ item }) => (
 								<TouchableOpacity
-									style={[s.addBtn, savingProduct && { opacity: 0.6 }]}
-									onPress={saveProduitForm}
-									disabled={savingProduct}
+									style={s.itemRow}
+									onPress={() => {
+										setLigne(activeLine, 'produit_id', String(item.id));
+										setLigne(activeLine, 'nom', item.libelle || `Produit ${item.id}`);
+										setLigne(activeLine, 'prix_unitaire', String(item.prix_unitaire || ''));
+										setShowProductModal(false);
+									}}
 								>
-									{savingProduct
-										? <ActivityIndicator color="#fff" />
-										: <Text style={s.addBtnText}>Enregistrer</Text>
-									}
+									<Text style={s.itemMain}>{item.libelle}</Text>
+									<Text style={s.itemSub}>{Number(item.prix_unitaire || 0).toFixed(2)} MAD</Text>
 								</TouchableOpacity>
-							</ScrollView>
+							)}
+							ListEmptyComponent={<Text style={s.empty}>Aucun produit trouvé.</Text>}
+						/>
+
+						<TouchableOpacity style={s.addInlineBtn} onPress={() => setShowProductForm((p) => !p)}>
+							<Text style={s.addInlineBtnTxt}>{showProductForm ? 'Annuler' : '+ Ajouter un produit'}</Text>
+						</TouchableOpacity>
+
+						{showProductForm && (
+							<View style={s.inlineForm}>
+								<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} />
+								<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" />
+								<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} />
+								<TextInput style={s.input} placeholder="Unité (ex: unite, kg)" placeholderTextColor={C.sub} value={productUnite} onChangeText={setProductUnite} />
+								<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingProduct && { opacity: 0.7 }]} onPress={saveProductForm} disabled={savingProduct}>
+									{savingProduct ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le produit</Text>}
+								</TouchableOpacity>
+							</View>
 						)}
 					</View>
-				</KeyboardAvoidingView>
+				</View>
 			</Modal>
-
-			{/* Unite picker modal - REMOVED, using inline picker instead */}
 		</SafeAreaView>
 	);
 }
 
 const s = StyleSheet.create({
-	safe:   { flex: 1, backgroundColor: C.bg },
-	scroll: { padding: 16, paddingTop: 12 },
-
+	safe: { flex: 1, backgroundColor: C.bg },
 	header: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
 		paddingHorizontal: 16,
 		paddingVertical: 12,
-		backgroundColor: C.white,
-		borderBottomWidth: 1,
-		borderBottomColor: C.border,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
 	},
-	back:        { fontSize: 16, color: C.accent },
-	headerTitle: { fontSize: 16, fontWeight: '600', color: C.text },
-
-	sectionLabel: { fontSize: 13, color: C.sub, marginBottom: 6, marginTop: 14, marginLeft: 4 },
-	sectionRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
-	addText:      { fontSize: 14, color: C.accent, fontWeight: '500' },
-
-	group: {
-		backgroundColor: C.white,
+	backBtn: {
+		height: 40,
+		paddingHorizontal: 12,
 		borderRadius: 12,
+		justifyContent: 'center',
+		backgroundColor: C.white,
 		borderWidth: 1,
 		borderColor: C.border,
-		overflow: 'hidden',
 	},
-	row: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		paddingHorizontal: 14,
-		paddingVertical: 13,
-		minHeight: 48,
-	},
-	rowSep:    { height: 1, backgroundColor: C.border, marginLeft: 14 },
-	rowLabel:  { fontSize: 15, color: C.text, flex: 1 },
-	rowValue:  { fontSize: 15, color: C.sub, textAlign: 'right', flex: 1 },
-	rowInput:  { fontSize: 15, color: C.text, textAlign: 'right', flex: 1 },
+	backTxt: { color: C.text, fontSize: 14, fontWeight: '700' },
+	title: { color: C.text, fontSize: 22, fontWeight: '800', flex: 1, textAlign: 'right' },
 
-	btn: {
-		backgroundColor: C.accent,
+	stepsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 8 },
+	stepPill: {
+		flex: 1,
+		height: 34,
 		borderRadius: 12,
-		paddingVertical: 15,
+		backgroundColor: '#E8E8EC',
+		justifyContent: 'center',
 		alignItems: 'center',
-		marginTop: 16,
 	},
-	btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+	stepPillActive: { backgroundColor: '#E9EAFF' },
+	stepTxt: { color: C.sub, fontSize: 12, fontWeight: '700' },
+	stepTxtActive: { color: C.accent },
 
-	// Date modal
-	dateOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-	dateSheet:   { backgroundColor: C.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30 },
-	dateSheetBar: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		paddingHorizontal: 20,
-		paddingVertical: 14,
-		borderBottomWidth: 1,
-		borderBottomColor: C.border,
-	},
-	dateCancel:  { fontSize: 16, color: C.sub },
-	dateConfirm: { fontSize: 16, color: C.accent, fontWeight: '600' },
-
-	// Sheet
-	sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-	sheet: {
+	scroll: { padding: 16, paddingTop: 2, paddingBottom: 140 },
+	card: {
 		backgroundColor: C.white,
-		borderTopLeftRadius: 20,
-		borderTopRightRadius: 20,
-		padding: 16,
-		maxHeight: '65%',
+		borderRadius: 14,
+		borderWidth: 1,
+		borderColor: C.border,
+		padding: 12,
+		...SHADOW,
 	},
-	sheetFormMode: {
-		maxHeight: '82%',
-	},
-	sheetBar: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 12,
-	},
-	sheetTitle:    { fontSize: 16, fontWeight: '600', color: C.text },
-	sheetClose:    { fontSize: 15, color: C.accent },
-	sheetItem:     { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.border },
-	sheetItemMain: { fontSize: 15, color: C.text, fontWeight: '500' },
-	sheetItemSub:  { fontSize: 13, color: C.sub, marginTop: 2 },
-	emptyText:     { textAlign: 'center', color: C.sub, padding: 20 },
-
-	clientSheetHeader: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		marginBottom: 12,
-	},
-	clientRow: {
-		paddingVertical: 13,
-		borderBottomWidth: 1,
-		borderBottomColor: C.border,
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 8,
-	},
-	clientName: {
+	cardTitle: { color: C.text, fontSize: 17, fontWeight: '800', marginBottom: 10 },
+	search: {
+		height: 46,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 12,
+		paddingHorizontal: 12,
 		fontSize: 15,
-		fontWeight: '500',
 		color: C.text,
-	},
-	clientMeta: {
-		fontSize: 12,
-		color: C.sub,
-		marginTop: 2,
-	},
-	searchWrap: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 8,
-		backgroundColor: '#F7F7FA',
-		borderWidth: 1,
-		borderColor: C.border,
-		borderRadius: 10,
-		paddingHorizontal: 10,
+		backgroundColor: '#FAFAFB',
 		marginBottom: 10,
 	},
-	searchInput: {
-		flex: 1,
-		height: 40,
-		fontSize: 14,
-		color: C.text,
-	},
-	addBtn: {
-		marginTop: 14,
-		backgroundColor: C.accent,
-		borderRadius: 10,
+	itemRow: {
 		paddingVertical: 12,
-		paddingHorizontal: 14,
-		flexDirection: 'row',
+		borderBottomWidth: 1,
+		borderBottomColor: C.border,
+	},
+	itemRowActive: { backgroundColor: '#EEF0FF', borderRadius: 10, paddingHorizontal: 10 },
+	itemMain: { color: C.text, fontSize: 15, fontWeight: '700' },
+	itemSub: { color: C.sub, fontSize: 12, marginTop: 2 },
+	addInlineBtn: {
+		height: 44,
+		borderRadius: 12,
+		backgroundColor: '#EEF0FF',
 		alignItems: 'center',
 		justifyContent: 'center',
-		gap: 8,
+		marginTop: 10,
 	},
-	addBtnText: {
-		color: '#fff',
-		fontSize: 14,
-		fontWeight: '600',
+	addInlineBtnTxt: { color: C.accent, fontSize: 14, fontWeight: '700' },
+	inlineForm: {
+		marginTop: 10,
+		padding: 10,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 12,
+		backgroundColor: '#FAFAFB',
 	},
-	form: {
-		gap: 10,
-		paddingTop: 2,
-		paddingBottom: 12,
+	empty: { color: C.sub, textAlign: 'center', marginTop: 14 },
+
+	rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+	linkBtn: { paddingHorizontal: 10, paddingVertical: 4 },
+	linkBtnTxt: { color: C.accent, fontSize: 14, fontWeight: '700' },
+
+	lineCard: {
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 12,
+		padding: 10,
+		marginBottom: 10,
 	},
-	formScroll: {
-		flexGrow: 0,
+	select: {
+		height: 48,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 12,
+		backgroundColor: '#FAFAFB',
+		paddingHorizontal: 12,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
+	selectLabel: { color: C.sub, fontSize: 13 },
+	selectValue: { color: C.text, fontSize: 14, fontWeight: '700', flex: 1, textAlign: 'right' },
+	qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 },
+	qtyBtn: {
+		width: 38,
+		height: 38,
+		borderRadius: 10,
+		backgroundColor: '#EEF0FF',
+		justifyContent: 'center',
+		alignItems: 'center',
+	},
+	qtyBtnTxt: { color: C.accent, fontSize: 20, fontWeight: '800' },
+	qtyInput: {
+		width: 72,
+		height: 38,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 10,
+		textAlign: 'center',
+		color: C.text,
+		fontWeight: '700',
 	},
 	input: {
 		height: 46,
 		borderWidth: 1,
 		borderColor: C.border,
-		borderRadius: 10,
+		borderRadius: 12,
 		paddingHorizontal: 12,
 		fontSize: 15,
 		color: C.text,
 		backgroundColor: '#FAFAFB',
+		marginTop: 8,
 	},
-	pickerContainer: {
+	removeBtn: { marginTop: 8, alignItems: 'center' },
+	removeTxt: { color: '#C62828', fontWeight: '700' },
+
+	resumeLine: { color: C.sub, fontSize: 14, marginBottom: 6 },
+	resumeStrong: { color: C.text, fontWeight: '700' },
+	totalTtc: { color: C.text, fontSize: 20, fontWeight: '800', marginTop: 6 },
+
+	footerActions: {
+		position: 'absolute',
+		left: 0,
+		right: 0,
+		bottom: 0,
+		backgroundColor: C.bg,
+		paddingHorizontal: 16,
+		paddingTop: 10,
+		paddingBottom: 14,
 		flexDirection: 'row',
+		gap: 10,
+		borderTopWidth: 1,
+		borderTopColor: C.border,
+	},
+	ghostBtn: {
+		flex: 1,
+		height: 52,
+		borderRadius: 14,
+		justifyContent: 'center',
 		alignItems: 'center',
-		height: 46,
-		borderWidth: 1,
-		borderColor: C.border,
-		borderRadius: 10,
-		paddingHorizontal: 8,
-		backgroundColor: '#FAFAFB',
-		gap: 6,
-		overflow: 'hidden',
-	},
-	uniteButton: {
-		height: 46,
-		borderWidth: 1,
-		borderColor: C.border,
-		borderRadius: 10,
-		paddingHorizontal: 12,
-		backgroundColor: '#FAFAFB',
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-	},
-	uniteButtonText: {
-		fontSize: 15,
-		color: C.text,
-	},
-	unitDropdown: {
 		backgroundColor: C.white,
 		borderWidth: 1,
 		borderColor: C.border,
-		borderTopWidth: 0,
-		borderBottomLeftRadius: 10,
-		borderBottomRightRadius: 10,
-		overflow: 'hidden',
+		...SHADOW,
 	},
-	unitDropdownItem: {
-		flexDirection: 'row',
+	ghostBtnTxt: { color: C.text, fontSize: 15, fontWeight: '700' },
+	mainBtn: {
+		flex: 1.4,
+		height: 52,
+		borderRadius: 14,
+		justifyContent: 'center',
 		alignItems: 'center',
-		justifyContent: 'space-between',
-		paddingHorizontal: 12,
-		paddingVertical: 12,
-		borderBottomWidth: 1,
-		borderBottomColor: C.border,
+		backgroundColor: C.accent,
+		...SHADOW,
 	},
-	unitDropdownItemActive: {
-		backgroundColor: C.bg,
+	mainBtnTxt: { color: '#fff', fontSize: 16, fontWeight: '800' },
+
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: 'rgba(0,0,0,0.35)',
+		justifyContent: 'flex-end',
 	},
-	unitDropdownItemText: {
-		fontSize: 15,
-		color: C.text,
+	modalSheet: {
+		backgroundColor: C.white,
+		borderTopLeftRadius: 18,
+		borderTopRightRadius: 18,
+		padding: 14,
+		maxHeight: '72%',
 	},
-	unitDropdownItemTextActive: {
-		fontWeight: '600',
-		color: C.accent,
-	},
+	modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+	modalTitle: { color: C.text, fontSize: 17, fontWeight: '800' },
+	closeTxt: { color: C.accent, fontWeight: '700' },
 });

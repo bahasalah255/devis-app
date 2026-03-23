@@ -1,286 +1,208 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  FlatList, Alert, ActivityIndicator, SafeAreaView,
-  Button,
+	View,
+	Text,
+	TouchableOpacity,
+	StyleSheet,
+	FlatList,
+	Alert,
+	ActivityIndicator,
+	SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons , MaterialIcons} from '@expo/vector-icons';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 
 const C = {
-  bg:     '#F2F2F7',
-  white:  '#FFFFFF',
-  border: '#E5E5EA',
-  text:   '#000000',
-  sub:    '#8E8E93',
-  accent: '#4F46E5',
+	bg: '#F2F2F7',
+	white: '#FFFFFF',
+	accent: '#4F46E5',
+	text: '#1C1C1E',
+	sub: '#8E8E93',
+	border: '#E5E5EA',
 };
 
-function Archive({ navigation }) {
-  const [devis, setDevis]       = useState([]);  
-  const [user, setUser]         = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+const SHADOW = {
+	shadowColor: '#000',
+	shadowOpacity: 0.06,
+	shadowRadius: 8,
+	shadowOffset: { width: 0, height: 3 },
+	elevation: 2,
+};
 
-  const load = async (refresh = false) => {
-    refresh ? setRefreshing(true) : setLoading(true);
-    try {
-      const [raw, token] = await Promise.all([
-        AsyncStorage.getItem('user'),
-        AsyncStorage.getItem('token'),
-      ]);
+export default function Archive({ navigation }) {
+	const [devis, setDevis] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [refreshing, setRefreshing] = useState(false);
 
-      if (raw) setUser(JSON.parse(raw));
-      if (!token) { navigation.replace('Login'); return; }
+	const load = async (refresh = false) => {
+		refresh ? setRefreshing(true) : setLoading(true);
+		try {
+			const token = await AsyncStorage.getItem('token');
+			if (!token) {
+				navigation.replace('Login');
+				return;
+			}
+			const response = await axios.get(`${API_BASE_URL}/index_archive`, {
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			setDevis(Array.isArray(response.data) ? response.data : []);
+		} catch (error) {
+			if (error?.response?.status === 401) {
+				navigation.replace('Login');
+				return;
+			}
+			Alert.alert('Erreur', 'Impossible de charger les archives.');
+		} finally {
+			setLoading(false);
+			setRefreshing(false);
+		}
+	};
 
-      const res = await axios.get(`${API_BASE_URL}/index_archive`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setDevis(Array.isArray(res.data) ? res.data : []);
-    } catch (error) {
-      if (error?.response?.status === 401) { navigation.replace('Login'); return; }
-      Alert.alert('Erreur', 'Impossible de charger les devis.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+	useEffect(() => {
+		load();
+	}, []);
 
-  useEffect(() => { load(); }, []);
+	const handleUnarchive = (id) => {
+		Alert.alert('Restaurer', 'Remettre ce devis dans la liste active ?', [
+			{ text: 'Annuler', style: 'cancel' },
+			{
+				text: 'Restaurer',
+				onPress: async () => {
+					try {
+						const token = await AsyncStorage.getItem('token');
+						await axios.patch(`${API_BASE_URL}/Unarchive/${id}`, {}, {
+							headers: {
+								Authorization: `Bearer ${token}`,
+								Accept: 'application/json',
+							},
+						});
+						load(true);
+					} catch {
+						Alert.alert('Erreur', 'Restauration impossible.');
+					}
+				},
+			},
+		]);
+	};
 
-  const formatDate = (value) => {
-    if (!value) return 'Date non definie';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Date non definie';
-    return date.toLocaleDateString('fr-FR');
-  };
-  const Unarchive = (id) => {
-   Alert.alert('UnArchive','Confirmer ?',[
-               {text : 'Annuler', style : 'cancel'},
-               {
-                   text : 'Archiver' , style : 'destructive',
-                   onPress : async() => {
-                       try {
-                           const token = await AsyncStorage.getItem('token');
-                           const reponse = await axios.patch(`${API_BASE_URL}/Unarchive/${id}`,{},
-                               {
-                                   headers: {
-                                   Authorization: `Bearer ${token}`,
-                                   Accept: 'application/json',
-                               }
-                               }
-                           );
-                           console.log('unarchived')
-                           load()
-   
-                       } catch(error) {
-                           console.error('Error:', error.response?.data);
-                       }
-                        
-                   }
-               }
-           ])
-          
-  }
-  const renderItem = ({ item }) => (
-    <TouchableOpacity activeOpacity={0.8} style={s.card}>
-      <View style={s.cardTopRow}>
-        <View style={s.cardTitleWrap}>
-          <Text style={s.cardNumber}>{item?.numero || 'Devis sans numero'}</Text>
-          <Text style={s.cardClient} numberOfLines={1}>
-            {item?.client?.nom || 'Client inconnu'}
-          </Text>
-        </View>
-        <View style={s.archiveBadge}>
-          <Text style={s.archiveBadgeText}>Archive</Text>
-        </View>
-       <TouchableOpacity onPress={() => {console.log('unarchive')
-        Unarchive(item.id)
-       }}>
-  <MaterialIcons name="unarchive" size={22} color="#4F46E5" />
-</TouchableOpacity>
-      </View>
+	const formatDate = (value) => {
+		if (!value) return '-';
+		const d = new Date(value);
+		if (Number.isNaN(d.getTime())) return '-';
+		return d.toLocaleDateString('fr-FR');
+	};
 
-      <View style={s.separator} />
+	const renderItem = ({ item }) => (
+		<View style={s.card}>
+			<View style={s.rowBetween}>
+				<View style={{ flex: 1 }}>
+					<Text style={s.number}>{item.numero || `DEV-${item.id}`}</Text>
+					<Text style={s.client} numberOfLines={1}>{item?.client?.nom || 'Client inconnu'}</Text>
+				</View>
+				<Text style={s.badge}>🗄 Archivé</Text>
+			</View>
 
-      <View style={s.cardBottomRow}>
-        <View style={s.metaRow}>
-          <Ionicons name="calendar-outline" size={14} color={C.sub} />
-          <Text style={s.metaText}>{formatDate(item?.updated_at || item?.created_at)}</Text>
-        </View>
-        <Text style={s.amountText}>{Number(item?.total_ttc || 0).toFixed(2)} MAD</Text>
-      </View>
-    </TouchableOpacity>
-  );
+			<View style={[s.rowBetween, { marginTop: 10 }]}>
+				<Text style={s.meta}>Mis à jour: {formatDate(item.updated_at || item.created_at)}</Text>
+				<Text style={s.amount}>{Number(item.total_ttc || 0).toFixed(2)} MAD</Text>
+			</View>
 
-  return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.replace('Dash')} style={s.backBtn}>
-          <Ionicons name="chevron-back" size={18} color={C.text} />
-          <Text style={s.backText}>Retour</Text>
-        </TouchableOpacity>
-        <View style={s.headerRight}>
-          <Text style={s.headerCount}>{devis.length}</Text>
-        </View>
-      </View>
+			<TouchableOpacity activeOpacity={0.85} style={s.restoreBtn} onPress={() => handleUnarchive(item.id)}>
+				<Text style={s.restoreBtnTxt}>↩ Restaurer</Text>
+			</TouchableOpacity>
+		</View>
+	);
 
-      <View style={s.titleBlock}>
-        <Text style={s.pageTitle}>Mes devis archives</Text>
-        <Text style={s.pageSubtitle}>Consultez l’historique de vos devis classes.</Text>
-      </View>
+	return (
+		<SafeAreaView style={s.safe}>
+			<View style={s.header}>
+				<TouchableOpacity activeOpacity={0.8} style={s.backBtn} onPress={() => navigation.replace('Dash')}>
+					<Text style={s.backBtnTxt}>← Retour</Text>
+				</TouchableOpacity>
+				<Text style={s.headerTitle}>Archives ({devis.length})</Text>
+			</View>
 
-      {loading ? (
-        <View style={s.center}>
-          <ActivityIndicator color={C.accent} />
-        </View>
-      ) : (
-        <FlatList
-          data={devis}
-          keyExtractor={item => item.id.toString()}
-          renderItem={renderItem}
-          refreshing={refreshing}
-          onRefresh={() => load(true)}
-          contentContainerStyle={s.list}
-          showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Ionicons name="archive-outline" size={34} color={C.sub} />
-              <Text style={s.emptyTitle}>Aucun devis archivé</Text>
-              <Text style={s.emptySub}>Les devis archives apparaitront ici.</Text>
-            </View>
-          }
-        />
-      )}
-    </SafeAreaView>
-  );
+			{loading ? (
+				<View style={s.center}><ActivityIndicator color={C.accent} /></View>
+			) : (
+				<FlatList
+					data={devis}
+					keyExtractor={(item) => String(item.id)}
+					renderItem={renderItem}
+					contentContainerStyle={s.list}
+					refreshing={refreshing}
+					onRefresh={() => load(true)}
+					showsVerticalScrollIndicator={false}
+					ListEmptyComponent={
+						<View style={s.emptyCard}>
+							<Text style={s.emptyEmoji}>📭</Text>
+							<Text style={s.emptyTitle}>Aucun devis archivé</Text>
+							<Text style={s.emptySub}>Vos devis archivés apparaîtront ici.</Text>
+						</View>
+					}
+				/>
+			)}
+		</SafeAreaView>
+	);
 }
 
-export default Archive;
-
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
-
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: C.white,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  backText: {
-    color: C.text,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  headerRight: {
-    minWidth: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  headerCount: {
-    fontSize: 13,
-    color: C.accent,
-    fontWeight: '700',
-  },
-
-  titleBlock: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
-  },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 4,
-  },
-  pageSubtitle: {
-    fontSize: 14,
-    color: C.sub,
-  },
-
-  list: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 20 },
-  card: {
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  cardTitleWrap: {
-    flex: 1,
-  },
-  cardNumber: {
-    fontSize: 15,
-    color: C.text,
-    fontWeight: '700',
-  },
-  cardClient: {
-    marginTop: 3,
-    fontSize: 13,
-    color: C.sub,
-  },
-  archiveBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-  },
-  archiveBadgeText: {
-    color: C.accent,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: C.border,
-    marginVertical: 10,
-  },
-  cardBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  metaText: {
-    color: C.sub,
-    fontSize: 12,
-  },
-  amountText: {
-    color: C.text,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  empty: { alignItems: 'center', marginTop: 58 },
-  emptyTitle: { fontSize: 16, color: C.text, fontWeight: '600', marginTop: 10 },
-  emptySub: { fontSize: 13, color: C.sub, marginTop: 4 },
+	safe: { flex: 1, backgroundColor: C.bg },
+	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+	header: {
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
+	backBtn: {
+		height: 40,
+		paddingHorizontal: 12,
+		borderRadius: 12,
+		justifyContent: 'center',
+		backgroundColor: C.white,
+		borderWidth: 1,
+		borderColor: C.border,
+	},
+	backBtnTxt: { color: C.text, fontSize: 14, fontWeight: '700' },
+	headerTitle: { color: C.text, fontSize: 20, fontWeight: '800' },
+	list: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
+	card: {
+		backgroundColor: C.white,
+		borderRadius: 14,
+		padding: 12,
+		borderWidth: 1,
+		borderColor: C.border,
+		...SHADOW,
+	},
+	rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+	number: { color: C.text, fontSize: 16, fontWeight: '700' },
+	client: { color: C.sub, fontSize: 13, marginTop: 2 },
+	badge: { color: C.accent, fontSize: 12, fontWeight: '700' },
+	meta: { color: C.sub, fontSize: 12, flex: 1 },
+	amount: { color: C.text, fontSize: 16, fontWeight: '800' },
+	restoreBtn: {
+		height: 44,
+		borderRadius: 12,
+		justifyContent: 'center',
+		alignItems: 'center',
+		marginTop: 12,
+		backgroundColor: '#EEF0FF',
+	},
+	restoreBtnTxt: { color: C.accent, fontSize: 15, fontWeight: '800' },
+	emptyCard: {
+		marginTop: 24,
+		backgroundColor: C.white,
+		borderRadius: 14,
+		borderWidth: 1,
+		borderColor: C.border,
+		padding: 24,
+		alignItems: 'center',
+		...SHADOW,
+	},
+	emptyEmoji: { fontSize: 26, marginBottom: 8 },
+	emptyTitle: { color: C.text, fontSize: 16, fontWeight: '700' },
+	emptySub: { color: C.sub, fontSize: 13, marginTop: 4 },
 });
