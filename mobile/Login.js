@@ -5,49 +5,56 @@ import {
 	TextInput,
 	TouchableOpacity,
 	StyleSheet,
-	ActivityIndicator,
-	Alert,
 	SafeAreaView,
 	KeyboardAvoidingView,
 	Platform,
-	ScrollView,
+	ActivityIndicator,
+	Alert,
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
 
 const C = {
-	bg:      '#F2F2F7',
-	white:   '#FFFFFF',
-	border:  '#E5E5EA',
-	text:    '#000000',
-	sub:     '#8E8E93',
-	accent:  '#4F46E5',
-	danger:  '#FF3B30',
+	bg: '#F2F2F7',
+	white: '#FFFFFF',
+	accent: '#4F46E5',
+	text: '#1C1C1E',
+	sub: '#8E8E93',
+	border: '#E5E5EA',
+};
+
+const SHADOW = {
+	shadowColor: '#000',
+	shadowOpacity: 0.06,
+	shadowRadius: 8,
+	shadowOffset: { width: 0, height: 3 },
+	elevation: 2,
 };
 
 export default function Login({ navigation }) {
-	const [email, setEmail]       = useState('');
+	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
-	const [loading, setLoading]   = useState(false);
-	const [showPass, setShowPass] = useState(false);
+	const [loading, setLoading] = useState(false);
 
 	const handleLogin = async () => {
-		if (!email.trim() || !password) {
-			Alert.alert('Champs requis', 'Email et mot de passe obligatoires.');
+		if (!email.trim() || !password.trim()) {
+			Alert.alert('Champs requis', 'Veuillez saisir email et mot de passe.');
 			return;
 		}
+
 		setLoading(true);
 		try {
-			const res = await axios.post(`${API_BASE_URL}/login`, {
+			const response = await axios.post(`${API_BASE_URL}/login`, {
 				email: email.trim().toLowerCase(),
 				password,
 			});
-			await AsyncStorage.setItem('token', res.data.token);
-			await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
+
+			await AsyncStorage.setItem('token', response.data.token);
+			await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
 			navigation.replace('Dash');
-		} catch (e) {
-			Alert.alert('Erreur', 'Email ou mot de passe incorrect.');
+		} catch {
+			Alert.alert('Connexion échouée', 'Email ou mot de passe incorrect.');
 		} finally {
 			setLoading(false);
 		}
@@ -55,104 +62,82 @@ export default function Login({ navigation }) {
 
 	return (
 		<SafeAreaView style={s.safe}>
-			<KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-				<ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+			<KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+				<View style={s.container}>
+					<Text style={s.logo}>🧾 Devis App</Text>
+					<Text style={s.subtitle}>Connectez-vous pour gérer vos devis rapidement.</Text>
 
-					<View style={s.top}>
-						<Text style={s.appName}>Devis App</Text>
-						<Text style={s.appSub}>Connectez-vous pour continuer</Text>
-					</View>
+					<View style={s.card}>
+						<Text style={s.label}>Email</Text>
+						<TextInput
+							style={s.input}
+							value={email}
+							onChangeText={setEmail}
+							placeholder="exemple@email.com"
+							placeholderTextColor={C.sub}
+							autoCapitalize="none"
+							keyboardType="email-address"
+						/>
 
-					<View style={s.group}>
-						<View style={s.row}>
-							<TextInput
-								style={s.input}
-								placeholder="Email"
-								placeholderTextColor={C.sub}
-								keyboardType="email-address"
-								autoCapitalize="none"
-								autoCorrect={false}
-								value={email}
-								onChangeText={setEmail}
-							/>
-						</View>
-						<View style={s.separator} />
-						<View style={[s.row, { paddingRight: 0 }]}>
-							<TextInput
-								style={[s.input, { flex: 1 }]}
-								placeholder="Mot de passe"
-								placeholderTextColor={C.sub}
-								secureTextEntry={!showPass}
-								value={password}
-								onChangeText={setPassword}
-								onSubmitEditing={handleLogin}
-								returnKeyType="go"
-							/>
-							<TouchableOpacity style={s.showBtn} onPress={() => setShowPass(p => !p)}>
-								<Text style={s.showBtnText}>{showPass ? 'Cacher' : 'Voir'}</Text>
-							</TouchableOpacity>
-						</View>
+						<Text style={[s.label, { marginTop: 12 }]}>Mot de passe</Text>
+						<TextInput
+							style={s.input}
+							value={password}
+							onChangeText={setPassword}
+							placeholder="••••••••"
+							placeholderTextColor={C.sub}
+							secureTextEntry
+							onSubmitEditing={handleLogin}
+						/>
 					</View>
 
 					<TouchableOpacity
-						style={[s.btn, loading && { opacity: 0.6 }]}
+						activeOpacity={0.9}
+						style={[s.mainBtn, loading && { opacity: 0.7 }]}
 						onPress={handleLogin}
 						disabled={loading}
-						activeOpacity={0.8}
 					>
-						{loading
-							? <ActivityIndicator color="#fff" />
-							: <Text style={s.btnText}>Se connecter</Text>
-						}
+						{loading ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Se connecter</Text>}
 					</TouchableOpacity>
-
-					<Text style={s.footer}>Equipement Chefchaouni</Text>
-
-				</ScrollView>
+				</View>
 			</KeyboardAvoidingView>
 		</SafeAreaView>
 	);
 }
 
 const s = StyleSheet.create({
-	safe:    { flex: 1, backgroundColor: C.bg },
-	scroll:  { flexGrow: 1, padding: 20, justifyContent: 'center' },
-
-	top: { marginBottom: 36 },
-	appName: { fontSize: 30, fontWeight: '700', color: C.text, letterSpacing: -0.5 },
-	appSub:  { fontSize: 15, color: C.sub, marginTop: 4 },
-
-	group: {
+	flex: { flex: 1 },
+	safe: { flex: 1, backgroundColor: C.bg },
+	container: { flex: 1, padding: 16, justifyContent: 'center' },
+	logo: { fontSize: 30, fontWeight: '800', color: C.text, marginBottom: 6 },
+	subtitle: { fontSize: 14, color: C.sub, marginBottom: 18 },
+	card: {
 		backgroundColor: C.white,
-		borderRadius: 12,
+		borderRadius: 14,
 		borderWidth: 1,
 		borderColor: C.border,
-		marginBottom: 12,
-		overflow: 'hidden',
+		padding: 14,
+		...SHADOW,
 	},
-	row: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		paddingHorizontal: 14,
-	},
-	separator: { height: 1, backgroundColor: C.border, marginLeft: 14 },
+	label: { fontSize: 13, color: C.sub, marginBottom: 6 },
 	input: {
-		flex: 1,
-		paddingVertical: 14,
+		height: 48,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 12,
+		paddingHorizontal: 12,
 		fontSize: 16,
 		color: C.text,
+		backgroundColor: '#FAFAFB',
 	},
-	showBtn: { paddingHorizontal: 14, paddingVertical: 14 },
-	showBtnText: { fontSize: 14, color: C.accent, fontWeight: '600' },
-
-	btn: {
+	mainBtn: {
+		height: 52,
+		borderRadius: 14,
 		backgroundColor: C.accent,
-		borderRadius: 12,
-		paddingVertical: 15,
+		justifyContent: 'center',
 		alignItems: 'center',
-		marginBottom: 24,
+		marginTop: 14,
+		...SHADOW,
 	},
-	btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-
-	footer: { textAlign: 'center', color: C.sub, fontSize: 13 },
+	mainBtnTxt: { color: C.white, fontSize: 16, fontWeight: '800' },
 });

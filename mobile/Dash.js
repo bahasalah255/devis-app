@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
 	View,
 	Text,
@@ -10,57 +10,61 @@ import {
 	SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 
 const C = {
-	bg:     '#F2F2F7',
-	white:  '#FFFFFF',
-	border: '#E5E5EA',
-	text:   '#000000',
-	sub:    '#8E8E93',
+	bg: '#F2F2F7',
+	white: '#FFFFFF',
 	accent: '#4F46E5',
+	text: '#1C1C1E',
+	sub: '#8E8E93',
+	border: '#E5E5EA',
 };
 
-const STATUS = {
-	brouillon: { label: 'Brouillon', bg: '#FFF3CD', color: '#856404' },
-	envoye:    { label: 'Envoye',    bg: '#D1ECF1', color: '#0C5460' },
-	accepte:   { label: 'Accepte',   bg: '#D4EDDA', color: '#155724' },
-	refuse:    { label: 'Refuse',    bg: '#F8D7DA', color: '#721C24' },
+const SHADOW = {
+	shadowColor: '#000',
+	shadowOpacity: 0.06,
+	shadowRadius: 8,
+	shadowOffset: { width: 0, height: 3 },
+	elevation: 2,
 };
 
-function Chip({ status }) {
-	const cfg = STATUS[status] || STATUS.brouillon;
-	return (
-		<View style={[s.chip, { backgroundColor: cfg.bg }]}>
-			<Text style={[s.chipText, { color: cfg.color }]}>{cfg.label}</Text>
-		</View>
-	);
-}
+const statusMeta = {
+	brouillon: { label: 'Brouillon', dot: '⚪' },
+	envoye: { label: 'Envoyé', dot: '🟣' },
+	accepte: { label: 'Accepté', dot: '🟢' },
+	refuse: { label: 'Refusé', dot: '🔴' },
+};
 
 export default function Dash({ navigation }) {
-	const [user, setUser]         = useState(null);
-	const [devis, setDevis]       = useState([]);
-	const [loading, setLoading]   = useState(true);
+	const [user, setUser] = useState(null);
+	const [devis, setDevis] = useState([]);
+	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 
 	const load = async (refresh = false) => {
 		refresh ? setRefreshing(true) : setLoading(true);
 		try {
-			const [raw, token] = await Promise.all([
+			const [rawUser, token] = await Promise.all([
 				AsyncStorage.getItem('user'),
 				AsyncStorage.getItem('token'),
 			]);
-			if (raw) setUser(JSON.parse(raw));
-			if (!token) { navigation.replace('Login'); return; }
+			if (!token) {
+				navigation.replace('Login');
+				return;
+			}
+			if (rawUser) setUser(JSON.parse(rawUser));
 
-			const res = await axios.get(`${API_BASE_URL}/devis`, {
+			const response = await axios.get(`${API_BASE_URL}/devis`, {
 				headers: { Authorization: `Bearer ${token}` },
 			});
-			setDevis(Array.isArray(res.data) ? res.data : []);
-		} catch (e) {
-			if (e?.response?.status === 401) { navigation.replace('Login'); return; }
+			setDevis(Array.isArray(response.data) ? response.data : []);
+		} catch (error) {
+			if (error?.response?.status === 401) {
+				navigation.replace('Login');
+				return;
+			}
 			Alert.alert('Erreur', 'Impossible de charger les devis.');
 		} finally {
 			setLoading(false);
@@ -68,284 +72,241 @@ export default function Dash({ navigation }) {
 		}
 	};
 
-	useEffect(() => { load(); }, []);
+	useEffect(() => {
+		load();
+	}, []);
 
-	const logout = () =>
-		Alert.alert('Deconnexion', 'Confirmer ?', [
+	const handleLogout = () => {
+		Alert.alert('Déconnexion', 'Voulez-vous vous déconnecter ?', [
 			{ text: 'Annuler', style: 'cancel' },
 			{
-				text: 'Deconnecter', style: 'destructive',
+				text: 'Oui',
+				style: 'destructive',
 				onPress: async () => {
 					await AsyncStorage.multiRemove(['token', 'user']);
 					navigation.replace('Login');
 				},
 			},
 		]);
+	};
 
-	const accepted = devis.filter(d => d.statut === 'accepte').length;
-    const Archive = (id) => {
-        Alert.alert('Archive','Confirmer ?',[
-            {text : 'Annuler', style : 'cancel'},
-            {
-                text : 'Archiver' , style : 'destructive',
-                onPress : async() => {
-                    try {
-                        const token = await AsyncStorage.getItem('token');
-                        const reponse = await axios.patch(`${API_BASE_URL}/Archive/${id}`,{},
-                            {
-                                headers: {
-                                Authorization: `Bearer ${token}`,
-                                Accept: 'application/json',
-                            }
-                            }
-                        );
-                        console.log('archived')
-                        load()
+	const handleArchive = (id) => {
+		Alert.alert('Archiver', 'Archiver ce devis ?', [
+			{ text: 'Annuler', style: 'cancel' },
+			{
+				text: 'Archiver',
+				style: 'destructive',
+				onPress: async () => {
+					try {
+						const token = await AsyncStorage.getItem('token');
+						await axios.patch(`${API_BASE_URL}/Archive/${id}`, {}, {
+							headers: {
+								Authorization: `Bearer ${token}`,
+								Accept: 'application/json',
+							},
+						});
+						load(true);
+					} catch {
+						Alert.alert('Erreur', 'Archive impossible.');
+					}
+				},
+			},
+		]);
+	};
 
-                    } catch(error) {
-                        console.error('Error:', error.response?.data);
-                    }
-                     
-                }
-            }
-         ])
-       
+	const stats = useMemo(() => {
+		const accepted = devis.filter((d) => d.statut === 'accepte').length;
+		const total = devis.reduce((sum, d) => sum + Number(d.total_ttc || 0), 0);
+		return { accepted, total };
+	}, [devis]);
 
-    };
-	const renderItem = ({ item, index }) => (
-		<TouchableOpacity
-			activeOpacity={0.7}
-			style={s.devisRow}
-			onPress={() => navigation.navigate('UpdateDevis', { devis: item })}
-		>
-			<View style={s.leftCol}>
-				<Text style={s.devisNum}>{item.numero}</Text>
-				<Text style={s.devisClient} numberOfLines={1}>
-					{item?.client?.nom || 'Client inconnu'}
-				</Text>
-				<View style={s.metaRow}>
-					<Ionicons name="document-text-outline" size={13} color={C.sub} />
-					<Text style={s.metaText}>Devis #{item?.id || '-'}</Text>
+	const renderItem = ({ item }) => {
+		const status = statusMeta[item.statut] || statusMeta.brouillon;
+		return (
+			<TouchableOpacity
+				activeOpacity={0.9}
+				style={s.card}
+				onPress={() => navigation.navigate('UpdateDevis', { devis: item })}
+			>
+				<View style={s.cardTop}>
+					<View style={{ flex: 1 }}>
+						<Text style={s.cardNumber}>{item.numero || `DEV-${item.id}`}</Text>
+						<Text style={s.cardClient} numberOfLines={1}>{item?.client?.nom || 'Client inconnu'}</Text>
+					</View>
+					<TouchableOpacity activeOpacity={0.8} style={s.archiveMini} onPress={() => handleArchive(item.id)}>
+						<Text style={s.archiveMiniTxt}>🗂</Text>
+					</TouchableOpacity>
 				</View>
-			</View>
-			<View style={s.rightCol}>
-				<TouchableOpacity onPress={() => Archive(item.id)} style={s.archiveIconBtn}>
-					<Ionicons name="archive-outline" size={18} color={C.accent} />
-				</TouchableOpacity>
-				<Text style={s.devisAmount}>
-					{Number(item.total_ttc || 0).toFixed(2)} MAD
-				</Text>
-				<Chip status={item.statut} />
-			</View>
-		</TouchableOpacity>
-	);
+
+				<View style={s.rowBetween}>
+					<Text style={s.amount}>{Number(item.total_ttc || 0).toFixed(2)} MAD</Text>
+					<Text style={s.status}>{`${status.dot} ${status.label}`}</Text>
+				</View>
+			</TouchableOpacity>
+		);
+	};
 
 	return (
 		<SafeAreaView style={s.safe}>
-
-			{/* Header */}
 			<View style={s.header}>
-				<View style={s.headerLeft}>
-					<Text style={s.welcomeText}>Bienvenue</Text>
-					<Text style={s.headerName}>{user ? user.name : '—'}</Text>
+				<View>
+					<Text style={s.hello}>Bonjour</Text>
+					<Text style={s.name}>{user?.name || 'Utilisateur'}</Text>
 				</View>
-				<TouchableOpacity onPress={logout} style={s.logoutBtn}>
-					<Ionicons name="log-out-outline" size={16} color={C.accent} />
-					<Text style={s.logoutText}>Deconnexion</Text>
+				<TouchableOpacity activeOpacity={0.8} style={s.logoutBtn} onPress={handleLogout}>
+					<Text style={s.logoutTxt}>Déconnexion</Text>
+				</TouchableOpacity>
+			</View>
+
+			<View style={s.quickActions}>
+				<TouchableOpacity activeOpacity={0.9} style={s.primaryBtn} onPress={() => navigation.replace('CreateDevis')}>
+					<Text style={s.primaryBtnTxt}>+ Nouveau devis</Text>
+				</TouchableOpacity>
+				<TouchableOpacity activeOpacity={0.9} style={s.secondaryBtn} onPress={() => navigation.replace('Archive')}>
+					<Text style={s.secondaryBtnTxt}>Archives</Text>
 				</TouchableOpacity>
 			</View>
 
 			<View style={s.statsRow}>
 				<View style={s.statCard}>
-					<Text style={s.statLabel}>Total devis</Text>
+					<Text style={s.statLabel}>Devis en cours</Text>
 					<Text style={s.statValue}>{devis.length}</Text>
 				</View>
 				<View style={s.statCard}>
-					<Text style={s.statLabel}>Acceptes</Text>
-					<Text style={[s.statValue, { color: '#1E8E3E' }]}>{accepted}</Text>
+					<Text style={s.statLabel}>Acceptés</Text>
+					<Text style={s.statValue}>{stats.accepted}</Text>
+				</View>
+				<View style={s.statCard}>
+					<Text style={s.statLabel}>Montant</Text>
+					<Text style={s.statValue}>{stats.total.toFixed(0)}</Text>
 				</View>
 			</View>
 
-			{/* List */}
 			{loading ? (
-				<View style={s.center}>
-					<ActivityIndicator color={C.accent} />
-				</View>
+				<View style={s.center}><ActivityIndicator color={C.accent} /></View>
 			) : (
 				<FlatList
 					data={devis}
-					keyExtractor={item => item.id.toString()}
+					keyExtractor={(item) => String(item.id)}
 					renderItem={renderItem}
-					refreshing={refreshing}
-					onRefresh={() => load(true)}
 					contentContainerStyle={s.list}
 					showsVerticalScrollIndicator={false}
-					ListHeaderComponent={
-						<View style={s.listHeader}>
-							<Text style={s.listTitle}>Mes devis</Text>
-							<TouchableOpacity style={s.newBtn} onPress={() => navigation.replace('CreateDevis')}>
-								<Ionicons name="add" size={16} color="#fff" />
-								<Text style={s.newBtnText}>Nouveau</Text>
-							</TouchableOpacity>
-						</View>
-					}
-					ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+					refreshing={refreshing}
+					onRefresh={() => load(true)}
 					ListEmptyComponent={
-						<View style={s.empty}>
-							<Ionicons name="file-tray-outline" size={34} color={C.sub} />
-							<Text style={s.emptyTitle}>Aucun devis</Text>
-							<Text style={s.emptySub}>Creez votre premier devis</Text>
+						<View style={s.emptyCard}>
+							<Text style={s.emptyEmoji}>🧾</Text>
+							<Text style={s.emptyTitle}>Aucun devis pour le moment</Text>
+							<Text style={s.emptySub}>Touchez « Nouveau devis » pour commencer.</Text>
 						</View>
 					}
 				/>
-                
 			)}
-            {/* List Archive */}
-			<TouchableOpacity style={s.archiveBtn} onPress={() => navigation.replace('Archive')}>
-				<Ionicons name="archive" size={18} color="#fff" />
-				<Text style={s.archiveBtnText}>Mes devis archives</Text>
-			</TouchableOpacity>
-
 		</SafeAreaView>
 	);
 }
 
 const s = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: C.bg },
+	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
 	header: {
+		paddingHorizontal: 16,
+		paddingVertical: 12,
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingHorizontal: 18,
-		paddingTop: 10,
-		paddingBottom: 6,
 	},
-	headerLeft: { flex: 1 },
-	welcomeText: { fontSize: 12, color: C.sub, marginBottom: 2 },
-	headerName: { fontSize: 18, fontWeight: '700', color: C.text },
+	hello: { color: C.sub, fontSize: 13 },
+	name: { color: C.text, fontSize: 22, fontWeight: '700' },
 	logoutBtn: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 5,
-		backgroundColor: C.white,
-		paddingHorizontal: 10,
-		paddingVertical: 7,
-		borderRadius: 10,
+		height: 40,
+		paddingHorizontal: 14,
+		borderRadius: 12,
 		borderWidth: 1,
-		borderColor: '#E2E8F0',
+		borderColor: C.border,
+		backgroundColor: C.white,
+		justifyContent: 'center',
 	},
-	logoutText: { fontSize: 13, color: C.accent, fontWeight: '600' },
+	logoutTxt: { color: C.text, fontSize: 13, fontWeight: '600' },
 
-	statsRow: {
+	quickActions: {
 		paddingHorizontal: 16,
-		paddingTop: 8,
-		paddingBottom: 4,
 		flexDirection: 'row',
 		gap: 10,
+		marginBottom: 12,
 	},
+	primaryBtn: {
+		flex: 1,
+		height: 52,
+		borderRadius: 14,
+		backgroundColor: C.accent,
+		justifyContent: 'center',
+		alignItems: 'center',
+		...SHADOW,
+	},
+	primaryBtnTxt: { color: C.white, fontSize: 16, fontWeight: '700' },
+	secondaryBtn: {
+		width: 110,
+		height: 52,
+		borderRadius: 14,
+		backgroundColor: C.white,
+		justifyContent: 'center',
+		alignItems: 'center',
+		borderWidth: 1,
+		borderColor: C.border,
+		...SHADOW,
+	},
+	secondaryBtnTxt: { color: C.text, fontSize: 14, fontWeight: '700' },
+
+	statsRow: { paddingHorizontal: 16, flexDirection: 'row', gap: 8, marginBottom: 10 },
 	statCard: {
 		flex: 1,
 		backgroundColor: C.white,
+		borderRadius: 14,
+		padding: 10,
 		borderWidth: 1,
 		borderColor: C.border,
-		borderRadius: 12,
-		paddingVertical: 12,
-		paddingHorizontal: 12,
+		...SHADOW,
 	},
-	statLabel: { fontSize: 12, color: C.sub, marginBottom: 3 },
-	statValue: { fontSize: 20, color: C.accent, fontWeight: '700' },
+	statLabel: { color: C.sub, fontSize: 11, marginBottom: 4 },
+	statValue: { color: C.text, fontSize: 17, fontWeight: '700' },
 
-	list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
-
-	listHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 10,
-	},
-	listTitle: { fontSize: 17, fontWeight: '700', color: C.text },
-	newBtn: {
-		backgroundColor: C.accent,
-		paddingVertical: 9,
-		paddingHorizontal: 12,
-		borderRadius: 10,
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 4,
-	},
-	newBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-
-	devisRow: {
+	list: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
+	card: {
 		backgroundColor: C.white,
-		paddingHorizontal: 14,
-		paddingVertical: 12,
-		flexDirection: 'row',
-		alignItems: 'flex-start',
+		borderRadius: 14,
+		padding: 12,
 		borderWidth: 1,
-		borderRadius: 12,
 		borderColor: C.border,
+		...SHADOW,
 	},
-	leftCol: {
-		flex: 1,
-		paddingRight: 10,
+	cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+	cardNumber: { color: C.text, fontSize: 16, fontWeight: '700' },
+	cardClient: { color: C.sub, fontSize: 13, marginTop: 2 },
+	archiveMini: {
+		width: 34,
+		height: 34,
+		borderRadius: 10,
+		backgroundColor: '#EEF0F8',
+		justifyContent: 'center',
+		alignItems: 'center',
 	},
-	rightCol: {
-		alignItems: 'flex-end',
-		gap: 6,
-	},
-	archiveIconBtn: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
+	archiveMiniTxt: { fontSize: 16 },
+	rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+	amount: { color: C.text, fontSize: 17, fontWeight: '800' },
+	status: { color: C.sub, fontSize: 13, fontWeight: '600' },
+
+	emptyCard: {
+		backgroundColor: C.white,
 		borderWidth: 1,
-		borderColor: '#E0E7FF',
-		backgroundColor: '#EEF2FF',
-		justifyContent: 'center',
+		borderColor: C.border,
+		borderRadius: 14,
+		padding: 24,
 		alignItems: 'center',
+		...SHADOW,
 	},
-
-	devisNum:    { fontSize: 15, fontWeight: '600', color: C.text },
-	devisClient: { fontSize: 13, color: C.sub, marginTop: 3 },
-	metaRow: {
-		marginTop: 6,
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 5,
-	},
-	metaText: { fontSize: 12, color: C.sub },
-	devisAmount: { fontSize: 14, fontWeight: '600', color: C.text },
-
-	chip: {
-		paddingVertical: 3,
-		paddingHorizontal: 8,
-		borderRadius: 999,
-	},
-	chipText: { fontSize: 11, fontWeight: '600' },
-
-	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-	empty: { alignItems: 'center', paddingTop: 64, gap: 6 },
-	emptyTitle: { fontSize: 17, fontWeight: '700', color: C.text },
-	emptySub:   { fontSize: 14, color: C.sub },
-
-	archiveBtn: {
-		backgroundColor: C.accent,
-		paddingVertical: 14,
-		paddingHorizontal: 20,
-		borderRadius: 12,
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginHorizontal: 16,
-		marginBottom: 16,
-		marginTop: 8,
-		flexDirection: 'row',
-		gap: 8,
-	},
-	archiveBtnText: {
-		color: '#fff',
-		fontSize: 15,
-		fontWeight: '700',
-	},
-    
+	emptyEmoji: { fontSize: 26, marginBottom: 8 },
+	emptyTitle: { color: C.text, fontSize: 16, fontWeight: '700' },
+	emptySub: { color: C.sub, fontSize: 13, marginTop: 4, textAlign: 'center' },
 });
