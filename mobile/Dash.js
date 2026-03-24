@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import * as Linking from 'expo-linking';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
 	View,
 	Text,
@@ -89,7 +92,41 @@ export default function Dash({ navigation }) {
 			},
 		]);
 	};
+	const downloadInvoice = async (devis_id) => {
+		  const url = `${API_BASE_URL}/devis/${devis_id}/pdf`;
+		  console.log('in work');
+		   await Linking.openURL(`${url}`);
+	}
+	const sendPdfWhatsApp = async (id) => {
+		 try {
+        // 1. Download PDF from your Laravel API
+        const localUri = FileSystem.documentDirectory + `facture-${id}.pdf`;
 
+        const { uri } = await FileSystem.downloadAsync(
+            `${API_BASE_URL}/devis/${id}/pdf`, // your Laravel route
+            localUri
+        );
+
+        // 2. Check if sharing is available on the device
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+            Alert.alert('Erreur', 'Le partage n\'est pas disponible sur cet appareil.');
+            return;
+        }
+
+        // 3. Open native share sheet → user picks WhatsApp
+        await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Devis Equipement Chefchouani ${id}`,
+            UTI: 'com.adobe.pdf', // iOS only
+        });
+
+    } catch (error) {
+        Alert.alert('Erreur', 'Impossible d\'envoyer la facture.');
+        console.error(error);
+    }
+		
+	}
 	const handleArchive = (id) => {
 		Alert.alert('Archiver', 'Archiver ce devis ?', [
 			{ text: 'Annuler', style: 'cancel' },
@@ -136,6 +173,15 @@ export default function Dash({ navigation }) {
 					<TouchableOpacity activeOpacity={0.8} style={s.archiveMini} onPress={() => handleArchive(item.id)}>
 						<Text style={s.archiveMiniTxt}>🗂</Text>
 					</TouchableOpacity>
+					<TouchableOpacity  onPress={() => downloadInvoice(item.id)}>
+    <Text >📄 Télécharger la facture</Text>
+</TouchableOpacity>
+  <TouchableOpacity
+                
+                onPress={() => sendPdfWhatsApp(item.id)}
+            >
+                <Text>📲 Envoyer par WhatsApp</Text>
+            </TouchableOpacity>
 				</View>
 
 				<View style={s.rowBetween}>
