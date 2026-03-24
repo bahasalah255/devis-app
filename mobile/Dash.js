@@ -174,13 +174,13 @@ export default function Dash({ navigation }) {
 						<Text style={s.archiveMiniTxt}>🗂</Text>
 					</TouchableOpacity>
 					<TouchableOpacity  onPress={() => downloadInvoice(item.id)}>
-    <Text >📄 Télécharger la facture</Text>
+    <Text >📄</Text>
 </TouchableOpacity>
   <TouchableOpacity
                 
                 onPress={() => sendPdfWhatsApp(item.id)}
             >
-                <Text>📲 Envoyer par WhatsApp</Text>
+                <Text>📲</Text>
             </TouchableOpacity>
 				</View>
 
