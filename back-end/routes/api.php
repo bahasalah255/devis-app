@@ -26,11 +26,14 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::post('devis-lignes',        [DevisLigneController::class, 'store']);
 	Route::put('devis-lignes/{id}',    [DevisLigneController::class, 'update']);
 	Route::delete('devis-lignes/{id}', [DevisLigneController::class, 'destroy']);
+	
 
  });
  // Clients
     Route::apiResource('clients', ClientController::class);
 	Route::post('clients'  ,[ClientController::class, 'store']);
+	Route::get('/devis/{id}/pdf', [DevisController::class, 'downloadPdf']);
+	
 
     // Produits
     Route::apiResource('produits', ProduitController::class);

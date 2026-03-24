@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Devis;
 use App\Models\DevisLigne;
 use Illuminate\Http\Request;
-
+use Barryvdh\DomPDF\Facade\Pdf;
 class DevisController extends Controller
 {
     public function index_archive(Request $request){
@@ -169,4 +169,19 @@ class DevisController extends Controller
           return response()->json($devis);
     
     }
+    public function downloadPdf($id)
+{
+    // Fetch devis with its relationships
+    $devis = Devis::with(['client', 'lignes'])->findOrFail($id);
+
+    // Generate PDF from blade view
+    $pdf = Pdf::loadView('pdf.invoice', compact('devis'))
+              ->setPaper('a4', 'portrait');
+
+    // Return as download
+    return $pdf->download("facture-{$devis->id}.pdf");
+
+    // Or return inline (opens in browser):
+    // return $pdf->stream("facture-{$devis->id}.pdf");
+}
 }
