@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
 	View,
@@ -12,6 +12,8 @@ import {
 	Modal,
 	FlatList,
 	SafeAreaView,
+	KeyboardAvoidingView,
+	Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -52,6 +54,8 @@ const makeLine = () => ({
 	remise: '0',
 });
 
+const PRODUCT_UNITS = ['unite', 'kg', 'litre', 'metre'];
+
 export default function Create({ navigation }) {
 	const [step, setStep] = useState(1);
 	const [clientId, setClientId] = useState('');
@@ -77,6 +81,8 @@ export default function Create({ navigation }) {
 
 	const [loadingRefs, setLoadingRefs] = useState(true);
 	const [saving, setSaving] = useState(false);
+	const mainScrollRef = useRef(null);
+	const productListRef = useRef(null);
 
 	const client = clients.find((c) => String(c.id) === String(clientId));
 	const totalHT = useMemo(() => lignes.reduce((sum, l) => sum + calcLigne(l), 0), [lignes]);
@@ -113,6 +119,13 @@ export default function Create({ navigation }) {
 			}
 		})();
 	}, []);
+
+	useEffect(() => {
+		if (!showProductForm) return;
+		setTimeout(() => {
+			productListRef.current?.scrollToEnd({ animated: true });
+		}, 140);
+	}, [showProductForm]);
 
 	const setLigne = (index, key, value) => {
 		setLignes((prev) => prev.map((line, i) => (i === index ? { ...line, [key]: value } : line)));
@@ -228,6 +241,18 @@ export default function Create({ navigation }) {
 			return;
 		}
 
+		const parsedPrice = Number(String(productPrix).replace(',', '.'));
+		if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+			Alert.alert('Produit', 'Le prix unitaire doit être un nombre positif.');
+			return;
+		}
+
+		const normalizedUnit = String(productUnite || '').trim().toLowerCase();
+		if (!PRODUCT_UNITS.includes(normalizedUnit)) {
+			Alert.alert('Produit', 'Veuillez choisir une unité valide (unite, kg, litre, metre).');
+			return;
+		}
+
 		setSavingProduct(true);
 		try {
 			const token = await AsyncStorage.getItem('token');
@@ -236,8 +261,8 @@ export default function Create({ navigation }) {
 				{
 					libelle: productLibelle.trim(),
 					description: productDescription.trim() || null,
-					prix_unitaire: Number(productPrix),
-					unite: productUnite.trim() || 'unite',
+					prix_unitaire: parsedPrice,
+					unite: normalizedUnit,
 				},
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
@@ -265,7 +290,8 @@ export default function Create({ navigation }) {
 				const firstError = Object.values(apiErrors)?.[0]?.[0];
 				Alert.alert('Validation', firstError || 'Données produit invalides.');
 			} else {
-				Alert.alert('Erreur', 'Impossible de créer le produit.');
+				const message = error?.response?.data?.message;
+				Alert.alert('Erreur', message || 'Impossible de créer le produit.');
 			}
 		} finally {
 			setSavingProduct(false);
@@ -274,6 +300,11 @@ export default function Create({ navigation }) {
 
 	return (
 		<SafeAreaView style={s.safe}>
+			<KeyboardAvoidingView
+				style={s.keyboardRoot}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+			>
 			<View style={s.header}>
 				<TouchableOpacity style={s.backBtn} onPress={() => navigation.replace('Dash')}>
 					<Text style={s.backTxt}>← Retour</Text>
@@ -287,7 +318,13 @@ export default function Create({ navigation }) {
 				<View style={[s.stepPill, step >= 3 && s.stepPillActive]}><Text style={[s.stepTxt, step >= 3 && s.stepTxtActive]}>3. Confirmation</Text></View>
 			</View>
 
-			<ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+			<ScrollView
+				ref={mainScrollRef}
+				contentContainerStyle={s.scroll}
+				showsVerticalScrollIndicator={false}
+				keyboardShouldPersistTaps="handled"
+				keyboardDismissMode="on-drag"
+			>
 				{step === 1 && (
 					<View style={s.card}>
 						<Text style={s.cardTitle}>Choisir un client</Text>
@@ -324,9 +361,9 @@ export default function Create({ navigation }) {
 
 								{showClientForm && (
 									<View style={s.inlineForm}>
-										<TextInput style={s.input} placeholder="Nom du client" placeholderTextColor={C.sub} value={clientNom} onChangeText={setClientNom} />
-										<TextInput style={s.input} placeholder="Email (optionnel)" placeholderTextColor={C.sub} value={clientEmail} onChangeText={setClientEmail} autoCapitalize="none" keyboardType="email-address" />
-										<TextInput style={s.input} placeholder="Téléphone (optionnel)" placeholderTextColor={C.sub} value={clientTel} onChangeText={setClientTel} keyboardType="phone-pad" />
+										<TextInput style={s.input} placeholder="Nom du client" placeholderTextColor={C.sub} value={clientNom} onChangeText={setClientNom} onFocus={() => mainScrollRef.current?.scrollTo({ y: 320, animated: true })} />
+										<TextInput style={s.input} placeholder="Email (optionnel)" placeholderTextColor={C.sub} value={clientEmail} onChangeText={setClientEmail} autoCapitalize="none" keyboardType="email-address" onFocus={() => mainScrollRef.current?.scrollTo({ y: 380, animated: true })} />
+										<TextInput style={s.input} placeholder="Téléphone (optionnel)" placeholderTextColor={C.sub} value={clientTel} onChangeText={setClientTel} keyboardType="phone-pad" onFocus={() => mainScrollRef.current?.scrollTo({ y: 440, animated: true })} />
 										<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingClient && { opacity: 0.7 }]} onPress={saveClientForm} disabled={savingClient}>
 											{savingClient ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le client</Text>}
 										</TouchableOpacity>
@@ -362,6 +399,7 @@ export default function Create({ navigation }) {
 										value={line.quantite}
 										onChangeText={(v) => setLigne(index, 'quantite', v.replace(/[^0-9]/g, '') || '1')}
 										keyboardType="numeric"
+										onFocus={() => mainScrollRef.current?.scrollTo({ y: 260 + index * 180, animated: true })}
 									/>
 									<TouchableOpacity style={s.qtyBtn} onPress={() => setLigne(index, 'quantite', String(Number(line.quantite || 1) + 1))}>
 										<Text style={s.qtyBtnTxt}>+</Text>
@@ -375,6 +413,7 @@ export default function Create({ navigation }) {
 									keyboardType="decimal-pad"
 									placeholder="Prix unitaire"
 									placeholderTextColor={C.sub}
+									onFocus={() => mainScrollRef.current?.scrollTo({ y: 300 + index * 180, animated: true })}
 								/>
 
 								<TextInput
@@ -383,6 +422,7 @@ export default function Create({ navigation }) {
 									onChangeText={(v) => setLigne(index, 'description', v)}
 									placeholder="Description (optionnel)"
 									placeholderTextColor={C.sub}
+									onFocus={() => mainScrollRef.current?.scrollTo({ y: 340 + index * 180, animated: true })}
 								/>
 
 								{lignes.length > 1 && (
@@ -427,7 +467,12 @@ export default function Create({ navigation }) {
 
 			<Modal visible={showProductModal} transparent animationType="slide">
 				<View style={s.modalOverlay}>
-					<View style={s.modalSheet}>
+					<KeyboardAvoidingView
+						style={s.modalKeyboard}
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+					>
+						<View style={s.modalSheet}>
 						<View style={s.modalHeader}>
 							<Text style={s.modalTitle}>Choisir un produit</Text>
 							<TouchableOpacity onPress={() => setShowProductModal(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
@@ -440,8 +485,12 @@ export default function Create({ navigation }) {
 							onChangeText={setProductQuery}
 						/>
 						<FlatList
+							ref={productListRef}
 							data={filteredProduits}
 							keyExtractor={(item) => String(item.id)}
+							keyboardShouldPersistTaps="always"
+							nestedScrollEnabled
+							contentContainerStyle={s.modalListContent}
 							renderItem={({ item }) => (
 								<TouchableOpacity
 									style={s.itemRow}
@@ -456,33 +505,50 @@ export default function Create({ navigation }) {
 									<Text style={s.itemSub}>{Number(item.prix_unitaire || 0).toFixed(2)} MAD</Text>
 								</TouchableOpacity>
 							)}
+							ListFooterComponent={(
+								<>
+									<TouchableOpacity style={s.addInlineBtn} onPress={() => setShowProductForm((p) => !p)}>
+										<Text style={s.addInlineBtnTxt}>{showProductForm ? 'Annuler' : '+ Ajouter un produit'}</Text>
+									</TouchableOpacity>
+
+									{showProductForm && (
+										<View style={s.inlineForm}>
+											<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<Text style={s.unitLabel}>Unité</Text>
+											<View style={s.unitRow}>
+												{PRODUCT_UNITS.map((unit) => (
+													<TouchableOpacity
+														key={unit}
+														style={[s.unitChip, productUnite === unit && s.unitChipActive]}
+														onPress={() => setProductUnite(unit)}
+													>
+														<Text style={[s.unitChipTxt, productUnite === unit && s.unitChipTxtActive]}>{unit}</Text>
+													</TouchableOpacity>
+												))}
+											</View>
+											<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingProduct && { opacity: 0.7 }]} onPress={saveProductForm} disabled={savingProduct}>
+												{savingProduct ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le produit</Text>}
+											</TouchableOpacity>
+										</View>
+									)}
+								</>
+							)}
 							ListEmptyComponent={<Text style={s.empty}>Aucun produit trouvé.</Text>}
 						/>
-
-						<TouchableOpacity style={s.addInlineBtn} onPress={() => setShowProductForm((p) => !p)}>
-							<Text style={s.addInlineBtnTxt}>{showProductForm ? 'Annuler' : '+ Ajouter un produit'}</Text>
-						</TouchableOpacity>
-
-						{showProductForm && (
-							<View style={s.inlineForm}>
-								<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} />
-								<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" />
-								<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} />
-								<TextInput style={s.input} placeholder="Unité (ex: unite, kg)" placeholderTextColor={C.sub} value={productUnite} onChangeText={setProductUnite} />
-								<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingProduct && { opacity: 0.7 }]} onPress={saveProductForm} disabled={savingProduct}>
-									{savingProduct ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le produit</Text>}
-								</TouchableOpacity>
-							</View>
-						)}
-					</View>
+						</View>
+					</KeyboardAvoidingView>
 				</View>
 			</Modal>
+			</KeyboardAvoidingView>
 		</SafeAreaView>
 	);
 }
 
 const s = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: C.bg },
+	keyboardRoot: { flex: 1 },
 	header: {
 		paddingHorizontal: 16,
 		paddingVertical: 12,
@@ -561,6 +627,24 @@ const s = StyleSheet.create({
 		borderRadius: 12,
 		backgroundColor: '#FAFAFB',
 	},
+	unitLabel: { color: C.sub, fontSize: 13, fontWeight: '700', marginTop: 10 },
+	unitRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+	unitChip: {
+		paddingHorizontal: 10,
+		height: 34,
+		borderRadius: 10,
+		borderWidth: 1,
+		borderColor: C.border,
+		justifyContent: 'center',
+		alignItems: 'center',
+		backgroundColor: C.white,
+	},
+	unitChipActive: {
+		backgroundColor: '#EEF0FF',
+		borderColor: C.accent,
+	},
+	unitChipTxt: { color: C.text, fontWeight: '700', fontSize: 13 },
+	unitChipTxtActive: { color: C.accent },
 	empty: { color: C.sub, textAlign: 'center', marginTop: 14 },
 
 	rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -667,6 +751,7 @@ const s = StyleSheet.create({
 		backgroundColor: 'rgba(0,0,0,0.35)',
 		justifyContent: 'flex-end',
 	},
+	modalKeyboard: { flex: 1, justifyContent: 'flex-end' },
 	modalSheet: {
 		backgroundColor: C.white,
 		borderTopLeftRadius: 18,
@@ -674,6 +759,7 @@ const s = StyleSheet.create({
 		padding: 14,
 		maxHeight: '72%',
 	},
+	modalListContent: { paddingBottom: 6 },
 	modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
 	modalTitle: { color: C.text, fontSize: 17, fontWeight: '800' },
 	closeTxt: { color: C.accent, fontWeight: '700' },
