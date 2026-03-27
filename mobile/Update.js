@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
 	View,
 	Text,
@@ -11,6 +11,8 @@ import {
 	Modal,
 	FlatList,
 	SafeAreaView,
+	KeyboardAvoidingView,
+	Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -34,6 +36,7 @@ const SHADOW = {
 };
 
 const STATUTS = ['brouillon', 'envoye', 'accepte', 'refuse'];
+const PRODUCT_UNITS = ['unite', 'kg', 'litre', 'metre'];
 
 const calcLigne = (line) => {
 	const q = Number(line.quantite || 0);
@@ -67,6 +70,19 @@ export default function Update({ navigation, route }) {
 	const [activeLine, setActiveLine] = useState(0);
 	const [clientQuery, setClientQuery] = useState('');
 	const [productQuery, setProductQuery] = useState('');
+	const [showClientForm, setShowClientForm] = useState(false);
+	const [savingClient, setSavingClient] = useState(false);
+	const [clientNom, setClientNom] = useState('');
+	const [clientEmail, setClientEmail] = useState('');
+	const [clientTel, setClientTel] = useState('');
+	const [showProductForm, setShowProductForm] = useState(false);
+	const [savingProduct, setSavingProduct] = useState(false);
+	const [productLibelle, setProductLibelle] = useState('');
+	const [productPrix, setProductPrix] = useState('');
+	const [productDescription, setProductDescription] = useState('');
+	const [productUnite, setProductUnite] = useState('unite');
+	const clientListRef = useRef(null);
+	const productListRef = useRef(null);
 
 	const client = clients.find((c) => String(c.id) === String(clientId));
 
@@ -148,8 +164,129 @@ export default function Update({ navigation, route }) {
 		}
 	};
 
+	const saveClientForm = async () => {
+		if (savingClient) return;
+		if (!clientNom.trim()) {
+			Alert.alert('Client', 'Le nom du client est requis.');
+			return;
+		}
+
+		setSavingClient(true);
+		try {
+			const token = await AsyncStorage.getItem('token');
+			const response = await axios.post(
+				`${API_BASE_URL}/clients`,
+				{
+					nom: clientNom.trim(),
+					email: clientEmail.trim() || null,
+					telephone: clientTel.trim() || null,
+					adresse: null,
+				},
+				{ headers: { Authorization: `Bearer ${token}` } }
+			);
+
+			const created = response?.data;
+			if (!created?.id) {
+				Alert.alert('Erreur', 'Client créé mais ID invalide.');
+				return;
+			}
+
+			setClients((prev) => [created, ...prev]);
+			setClientId(String(created.id));
+			setClientNom('');
+			setClientEmail('');
+			setClientTel('');
+			setShowClientForm(false);
+			setShowClients(false);
+		} catch (error) {
+			const apiErrors = error?.response?.data?.errors;
+			if (apiErrors) {
+				const firstError = Object.values(apiErrors)?.[0]?.[0];
+				Alert.alert('Validation', firstError || 'Données client invalides.');
+			} else {
+				const message = error?.response?.data?.message;
+				Alert.alert('Erreur', message || 'Impossible de créer le client.');
+			}
+		} finally {
+			setSavingClient(false);
+		}
+	};
+
+	const saveProductForm = async () => {
+		if (savingProduct) return;
+		if (!productLibelle.trim()) {
+			Alert.alert('Produit', 'Le nom du produit est requis.');
+			return;
+		}
+		if (!productPrix.trim()) {
+			Alert.alert('Produit', 'Le prix est requis.');
+			return;
+		}
+
+		const parsedPrice = Number(String(productPrix).replace(',', '.'));
+		if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+			Alert.alert('Produit', 'Le prix unitaire doit être un nombre positif.');
+			return;
+		}
+
+		const normalizedUnit = String(productUnite || '').trim().toLowerCase();
+		if (!PRODUCT_UNITS.includes(normalizedUnit)) {
+			Alert.alert('Produit', 'Veuillez choisir une unité valide (unite, kg, litre, metre).');
+			return;
+		}
+
+		setSavingProduct(true);
+		try {
+			const token = await AsyncStorage.getItem('token');
+			const response = await axios.post(
+				`${API_BASE_URL}/produits`,
+				{
+					libelle: productLibelle.trim(),
+					description: productDescription.trim() || null,
+					prix_unitaire: parsedPrice,
+					unite: normalizedUnit,
+				},
+				{ headers: { Authorization: `Bearer ${token}` } }
+			);
+
+			const created = response?.data;
+			if (!created?.id) {
+				Alert.alert('Erreur', 'Produit créé mais ID invalide.');
+				return;
+			}
+
+			setProduits((prev) => [created, ...prev]);
+			setLigne(activeLine, 'produit_id', String(created.id));
+			setLigne(activeLine, 'nom', created.libelle || `Produit ${created.id}`);
+			setLigne(activeLine, 'prix_unitaire', String(created.prix_unitaire || ''));
+			setLigne(activeLine, 'description', created.description || '');
+			setProductLibelle('');
+			setProductPrix('');
+			setProductDescription('');
+			setProductUnite('unite');
+			setShowProductForm(false);
+			setShowProduits(false);
+		} catch (error) {
+			const apiErrors = error?.response?.data?.errors;
+			if (apiErrors) {
+				const firstError = Object.values(apiErrors)?.[0]?.[0];
+				Alert.alert('Validation', firstError || 'Données produit invalides.');
+			} else {
+				const message = error?.response?.data?.message;
+				Alert.alert('Erreur', message || 'Impossible de créer le produit.');
+			}
+		} finally {
+			setSavingProduct(false);
+		}
+	};
+
 	return (
 		<SafeAreaView style={s.safe}>
+			<KeyboardAvoidingView
+				style={s.keyboardRoot}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+			>
 			<View style={s.header}>
 				<TouchableOpacity style={s.backBtn} onPress={() => navigation.replace('Dash')}>
 					<Text style={s.backBtnTxt}>← Retour</Text>
@@ -157,7 +294,12 @@ export default function Update({ navigation, route }) {
 				<Text style={s.title}>{initial.numero || `DEV-${initial.id}`}</Text>
 			</View>
 
-			<ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+			<ScrollView
+				contentContainerStyle={s.scroll}
+				showsVerticalScrollIndicator={false}
+				keyboardShouldPersistTaps="handled"
+				keyboardDismissMode="on-drag"
+			>
 				<View style={s.card}>
 					<Text style={s.cardTitle}>Client et statut</Text>
 					<TouchableOpacity style={s.select} onPress={() => setShowClients(true)} disabled={loadingRefs}>
@@ -232,36 +374,73 @@ export default function Update({ navigation, route }) {
 
 			<Modal visible={showClients} transparent animationType="slide">
 				<View style={s.modalOverlay}>
-					<View style={s.modalSheet}>
+					<KeyboardAvoidingView
+						style={s.modalKeyboard}
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+					>
+						<View style={s.modalSheet}>
 						<View style={s.modalHeader}>
 							<Text style={s.modalTitle}>Choisir un client</Text>
 							<TouchableOpacity onPress={() => setShowClients(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
 						</View>
 						<TextInput style={s.search} value={clientQuery} onChangeText={setClientQuery} placeholder="Rechercher client" placeholderTextColor={C.sub} />
 						<FlatList
+							ref={clientListRef}
 							data={filteredClients}
 							keyExtractor={(item) => String(item.id)}
+							keyboardShouldPersistTaps="always"
+							nestedScrollEnabled
+							contentContainerStyle={s.modalListContent}
 							renderItem={({ item }) => (
 								<TouchableOpacity style={s.itemRow} onPress={() => { setClientId(String(item.id)); setShowClients(false); }}>
 									<Text style={s.itemMain}>{item.nom}</Text>
 								</TouchableOpacity>
 							)}
+							ListFooterComponent={(
+								<>
+									<TouchableOpacity style={s.addInlineBtn} onPress={() => setShowClientForm((p) => !p)}>
+										<Text style={s.addInlineBtnTxt}>{showClientForm ? 'Annuler' : '+ Ajouter un client'}</Text>
+									</TouchableOpacity>
+
+									{showClientForm && (
+										<View style={s.inlineForm}>
+											<TextInput style={s.input} placeholder="Nom du client" placeholderTextColor={C.sub} value={clientNom} onChangeText={setClientNom} onFocus={() => clientListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Email (optionnel)" placeholderTextColor={C.sub} value={clientEmail} onChangeText={setClientEmail} autoCapitalize="none" keyboardType="email-address" onFocus={() => clientListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Téléphone (optionnel)" placeholderTextColor={C.sub} value={clientTel} onChangeText={setClientTel} keyboardType="phone-pad" onFocus={() => clientListRef.current?.scrollToEnd({ animated: true })} />
+											<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingClient && { opacity: 0.7 }]} onPress={saveClientForm} disabled={savingClient}>
+												{savingClient ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le client</Text>}
+											</TouchableOpacity>
+										</View>
+									)}
+								</>
+							)}
 						/>
-					</View>
+						</View>
+					</KeyboardAvoidingView>
 				</View>
 			</Modal>
 
 			<Modal visible={showProduits} transparent animationType="slide">
 				<View style={s.modalOverlay}>
-					<View style={s.modalSheet}>
+					<KeyboardAvoidingView
+						style={s.modalKeyboard}
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+					>
+						<View style={s.modalSheet}>
 						<View style={s.modalHeader}>
 							<Text style={s.modalTitle}>Choisir un produit</Text>
 							<TouchableOpacity onPress={() => setShowProduits(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
 						</View>
 						<TextInput style={s.search} value={productQuery} onChangeText={setProductQuery} placeholder="Rechercher produit" placeholderTextColor={C.sub} />
 						<FlatList
+							ref={productListRef}
 							data={filteredProduits}
 							keyExtractor={(item) => String(item.id)}
+							keyboardShouldPersistTaps="always"
+							nestedScrollEnabled
+							contentContainerStyle={s.modalListContent}
 							renderItem={({ item }) => (
 								<TouchableOpacity
 									style={s.itemRow}
@@ -276,14 +455,45 @@ export default function Update({ navigation, route }) {
 									<Text style={s.itemSub}>{Number(item.prix_unitaire || 0).toFixed(2)} MAD</Text>
 								</TouchableOpacity>
 							)}
+							ListFooterComponent={(
+								<>
+									<TouchableOpacity style={s.addInlineBtn} onPress={() => setShowProductForm((p) => !p)}>
+										<Text style={s.addInlineBtnTxt}>{showProductForm ? 'Annuler' : '+ Ajouter un produit'}</Text>
+									</TouchableOpacity>
+
+									{showProductForm && (
+										<View style={s.inlineForm}>
+											<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<Text style={s.unitLabel}>Unité</Text>
+											<View style={s.unitRow}>
+												{PRODUCT_UNITS.map((unit) => (
+													<TouchableOpacity
+														key={unit}
+														style={[s.unitChip, productUnite === unit && s.unitChipActive]}
+														onPress={() => setProductUnite(unit)}
+													>
+														<Text style={[s.unitChipTxt, productUnite === unit && s.unitChipTxtActive]}>{unit}</Text>
+													</TouchableOpacity>
+												))}
+											</View>
+											<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingProduct && { opacity: 0.7 }]} onPress={saveProductForm} disabled={savingProduct}>
+												{savingProduct ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le produit</Text>}
+											</TouchableOpacity>
+										</View>
+									)}
+								</>
+							)}
 						/>
-					</View>
+						</View>
+					</KeyboardAvoidingView>
 				</View>
 			</Modal>
 
 			<Modal visible={showStatut} transparent animationType="fade">
 				<View style={s.modalOverlay}>
-					<View style={[s.modalSheet, { maxHeight: 260 }]}>
+					<View style={[s.modalSheet, { maxHeight: 260 }]}> 
 						<View style={s.modalHeader}>
 							<Text style={s.modalTitle}>Statut</Text>
 							<TouchableOpacity onPress={() => setShowStatut(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
@@ -296,12 +506,14 @@ export default function Update({ navigation, route }) {
 					</View>
 				</View>
 			</Modal>
+			</KeyboardAvoidingView>
 		</SafeAreaView>
 	);
 }
 
 const s = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: C.bg },
+	keyboardRoot: { flex: 1 },
 	header: {
 		paddingHorizontal: 16,
 		paddingVertical: 12,
@@ -396,6 +608,7 @@ const s = StyleSheet.create({
 		backgroundColor: 'rgba(0,0,0,0.35)',
 		justifyContent: 'flex-end',
 	},
+	modalKeyboard: { flex: 1, justifyContent: 'flex-end' },
 	modalSheet: {
 		backgroundColor: C.white,
 		borderTopLeftRadius: 18,
@@ -424,4 +637,40 @@ const s = StyleSheet.create({
 	},
 	itemMain: { color: C.text, fontSize: 15, fontWeight: '700' },
 	itemSub: { color: C.sub, fontSize: 13, marginTop: 2 },
+	addInlineBtn: {
+		height: 44,
+		borderRadius: 12,
+		backgroundColor: '#EEF0FF',
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginTop: 10,
+	},
+	addInlineBtnTxt: { color: C.accent, fontSize: 14, fontWeight: '700' },
+	inlineForm: {
+		marginTop: 10,
+		padding: 10,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 12,
+		backgroundColor: '#FAFAFB',
+	},
+	unitLabel: { color: C.sub, fontSize: 13, fontWeight: '700', marginTop: 10 },
+	unitRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+	unitChip: {
+		paddingHorizontal: 10,
+		height: 34,
+		borderRadius: 10,
+		borderWidth: 1,
+		borderColor: C.border,
+		justifyContent: 'center',
+		alignItems: 'center',
+		backgroundColor: C.white,
+	},
+	unitChipActive: {
+		backgroundColor: '#EEF0FF',
+		borderColor: C.accent,
+	},
+	unitChipTxt: { color: C.text, fontWeight: '700', fontSize: 13 },
+	unitChipTxtActive: { color: C.accent },
+ 	modalListContent: { paddingBottom: 8 },
 });
