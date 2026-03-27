@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Devis;
 use App\Models\DevisLigne;
 use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
+
 class DevisController extends Controller
 {
     public function index_archive(Request $request){
@@ -169,19 +169,27 @@ class DevisController extends Controller
           return response()->json($devis);
     
     }
-    public function downloadPdf($id)
+    public function generatePdf(Request $request, $id)
 {
-    // Fetch devis with its relationships
-    $devis = Devis::with(['client', 'lignes'])->findOrFail($id);
+    $devis = Devis::with(['client', 'lignes.produit'])
+        ->where('user_id', $request->user()->id)
+        ->findOrFail($id);
 
-    // Generate PDF from blade view
-    $pdf = Pdf::loadView('pdf.invoice', compact('devis'))
-              ->setPaper('a4', 'portrait');
+    $pdf = app('snappy.pdf.wrapper');
+    $pdf->loadView('pdf.invoice', compact('devis'));
+    $pdf->setOption('margin-top', 0);
+    $pdf->setOption('margin-bottom', 0);
+    $pdf->setOption('margin-left', 0);
+    $pdf->setOption('margin-right', 0);
+    $pdf->setOption('encoding', 'UTF-8');
+    $pdf->setOption('dpi', 96);
+    $pdf->setOption('page-width', 210);
+    $pdf->setOption('page-height', 297);
+    $pdf->setOption('disable-smart-shrinking', true);
 
-    // Return as download
-    return $pdf->download("facture-{$devis->id}.pdf");
-
-    // Or return inline (opens in browser):
-    // return $pdf->stream("facture-{$devis->id}.pdf");
+    return response($pdf->output(), 200, [
+        'Content-Type' => 'application/pdf',
+        'Content-Disposition' => 'inline; filename="devis-' . ($devis->numero ?? $devis->id) . '.pdf"',
+    ]);
 }
 }

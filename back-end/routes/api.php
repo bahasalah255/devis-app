@@ -18,7 +18,8 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::apiResource('devis', DevisController::class);
    Route::get('/index_archive', [DevisController::class, 'index_archive']);
 	Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
-	Route::get('devis/{id}/pdf',      [DevisController::class, 'generatePdf']);
+	Route::get('devis/{id}/pdf', [DevisController::class, 'generatePdf']);
+	
     Route::patch('Archive/{id}' , [DevisController::class, 'Archive']);
 	Route::patch('Unarchive/{id}' , [DevisController::class, 'Unarchive']);
 
@@ -32,7 +33,6 @@ Route::middleware('auth:sanctum')->group(function () {
  // Clients
     Route::apiResource('clients', ClientController::class);
 	Route::post('clients'  ,[ClientController::class, 'store']);
-	Route::get('/devis/{id}/pdf', [DevisController::class, 'downloadPdf']);
 	
 
     // Produits

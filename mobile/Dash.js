@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import * as Linking from 'expo-linking';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
@@ -92,20 +91,85 @@ export default function Dash({ navigation }) {
 			},
 		]);
 	};
+	const getPdfRequestHeaders = async () => {
+		const token = await AsyncStorage.getItem('token');
+		if (!token) {
+			navigation.replace('Login');
+			throw new Error('NO_TOKEN');
+		}
+
+		return {
+			Authorization: `Bearer ${token}`,
+			Accept: 'application/pdf',
+		};
+	};
+
 	const downloadInvoice = async (devis_id) => {
-		  const url = `${API_BASE_URL}/devis/${devis_id}/pdf`;
-		  console.log('in work');
-		   await Linking.openURL(`${url}`);
-	}
+		try {
+			const headers = await getPdfRequestHeaders();
+			const localUri = FileSystem.documentDirectory + `devis-${devis_id}.pdf`;
+
+			const downloadResult = await FileSystem.downloadAsync(
+				`${API_BASE_URL}/devis/${devis_id}/pdf`,
+				localUri,
+				{ headers }
+			);
+
+			if (downloadResult.status !== 200) {
+				if (downloadResult.status === 401) {
+					navigation.replace('Login');
+					return;
+				}
+				throw new Error(`HTTP_${downloadResult.status}`);
+			}
+
+			const canShare = await Sharing.isAvailableAsync();
+			if (!canShare) {
+				Alert.alert('Succès', `PDF téléchargé: ${downloadResult.uri}`);
+				return;
+			}
+
+			await Sharing.shareAsync(downloadResult.uri, {
+				mimeType: 'application/pdf',
+				dialogTitle: `Devis ${devis_id}`,
+				UTI: 'com.adobe.pdf',
+			});
+		} catch (error) {
+			if (error?.response?.status === 401) {
+				navigation.replace('Login');
+				return;
+			}
+			if (error?.message === 'NO_TOKEN') return;
+			const details =
+				error?.message ||
+				error?.response?.data?.message ||
+				'Connexion impossible au serveur';
+
+			Alert.alert(
+				'Erreur PDF',
+				`Impossible de télécharger le PDF.\nURL: ${API_BASE_URL}\nDétail: ${details}`
+			);
+		}
+	};
 	const sendPdfWhatsApp = async (id) => {
 		 try {
+			const headers = await getPdfRequestHeaders();
         // 1. Download PDF from your Laravel API
         const localUri = FileSystem.documentDirectory + `facture-${id}.pdf`;
 
-        const { uri } = await FileSystem.downloadAsync(
+        const downloadResult = await FileSystem.downloadAsync(
             `${API_BASE_URL}/devis/${id}/pdf`, // your Laravel route
-            localUri
+            localUri,
+			{ headers }
         );
+
+		if (downloadResult.status !== 200) {
+			if (downloadResult.status === 401) {
+				navigation.replace('Login');
+				return;
+			}
+			throw new Error(`HTTP_${downloadResult.status}`);
+		}
 
         // 2. Check if sharing is available on the device
         const isAvailable = await Sharing.isAvailableAsync();
@@ -115,14 +179,23 @@ export default function Dash({ navigation }) {
         }
 
         // 3. Open native share sheet → user picks WhatsApp
-        await Sharing.shareAsync(uri, {
+		await Sharing.shareAsync(downloadResult.uri, {
             mimeType: 'application/pdf',
             dialogTitle: `Devis Equipement Chefchouani ${id}`,
             UTI: 'com.adobe.pdf', // iOS only
         });
 
     } catch (error) {
-        Alert.alert('Erreur', 'Impossible d\'envoyer la facture.');
+		if (error?.response?.status === 401) {
+			navigation.replace('Login');
+			return;
+		}
+		if (error?.message === 'NO_TOKEN') return;
+		const details =
+			error?.message ||
+			error?.response?.data?.message ||
+			'Connexion impossible au serveur';
+        Alert.alert('Erreur', `Impossible d\'envoyer la facture.\nURL: ${API_BASE_URL}\nDétail: ${details}`);
         console.error(error);
     }
 		
