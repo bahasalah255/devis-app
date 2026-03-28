@@ -170,26 +170,19 @@ class DevisController extends Controller
     
     }
     public function generatePdf(Request $request, $id)
-{
-    $devis = Devis::with(['client', 'lignes.produit'])
-        ->where('user_id', $request->user()->id)
-        ->findOrFail($id);
+    {
+        $devis = Devis::with(['client', 'lignes.produit'])
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
 
-    $pdf = app('snappy.pdf.wrapper');
-    $pdf->loadView('pdf.invoice', compact('devis'));
-    $pdf->setOption('margin-top', 0);
-    $pdf->setOption('margin-bottom', 0);
-    $pdf->setOption('margin-left', 0);
-    $pdf->setOption('margin-right', 0);
-    $pdf->setOption('encoding', 'UTF-8');
-    $pdf->setOption('dpi', 96);
-    $pdf->setOption('page-width', 210);
-    $pdf->setOption('page-height', 297);
-    $pdf->setOption('disable-smart-shrinking', true);
+        $pdf = app('dompdf.wrapper');
+        $pdf->loadView('pdf.invoice', compact('devis'));
+        $pdf->setPaper('a4', 'portrait');
+        $pdf->setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true]);
 
-    return response($pdf->output(), 200, [
-        'Content-Type' => 'application/pdf',
-        'Content-Disposition' => 'inline; filename="devis-' . ($devis->numero ?? $devis->id) . '.pdf"',
-    ]);
-}
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="devis-' . ($devis->numero ?? $devis->id) . '.pdf"',
+        ]);
+    }
 }

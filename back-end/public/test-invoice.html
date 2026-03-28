@@ -225,27 +225,13 @@ html, body {
     </table>
 </div>
 
-@php
-    $lignesPages = $devis->lignes->chunk(12);
-    $totalPages = $lignesPages->count();
-    $hasMultiplePages = $totalPages > 1;
-    $totalHT = $devis->lignes->sum(fn($l) => $l->quantite * $l->prix_unitaire);
-    $tva = $totalHT * 0.2;
-    $ttc = $totalHT + $tva;
-@endphp
 
 <div class="content-wrapper">
-    @foreach($lignesPages as $pageIndex => $lignesPage)
-    @php
-        $isFirstPage = $pageIndex === 0;
-        $isLastPage = $pageIndex === $totalPages - 1;
-    @endphp
-    <div class="invoice-page">
+            <div class="invoice-page">
         
-        @if($isFirstPage)
-            <table class="header-table">
+                    <table class="header-table">
                 <tr>
-                    <td class="logo-td"><img class="logo" src="{{ public_path('logo.png') }}" alt="Logo"></td>
+                    <td class="logo-td"><img class="logo" src="/Users/moaad/Projects/devis-app/back-end/public/logo.png" alt="Logo"></td>
                     <td class="company-td">
                         <div class="company">EQUIPEMENT CHEFCHAOUNI SARL</div>
                         <div class="slogan">
@@ -259,23 +245,19 @@ html, body {
             <table class="meta-table">
                 <tr>
                     <td class="client-td">
-                        <div class="client-box">Devis N°&nbsp;: {{ $devis->id }}</div>
+                        <div class="client-box">Devis N°&nbsp;: 1</div>
                     </td>
                     <td class="info-td">
                         <div class="info-box">
-                                <b>{{ $devis->client->nom }}</b><br>
-                                <b>Date&nbsp;:</b> {{ $devis->date_emission }}<br>
-                                <b>Valide jusqu'au&nbsp;:</b> {{ $devis->date_validite ?? '-' }}<br>
-                                <b>Tél&nbsp;:</b> {{ $devis->client->telephone ?? '-' }}
+                                <b>Farrell-O&#039;Hara</b><br>
+                                <b>Date&nbsp;:</b> 2026-03-28<br>
+                                <b>Valide jusqu'au&nbsp;:</b> 2026-04-27<br>
+                                <b>Tél&nbsp;:</b> 0662965732
                         </div>
                     </td>
                 </tr>
             </table>
-        @else
-            <!-- Spacer for continuation pages to give breathing room -->
-            <div style="height: 40px;"></div>
-        @endif
-
+        
         <table class="items-table">
                 <thead>
                         <tr>
@@ -286,57 +268,44 @@ html, body {
                         </tr>
                 </thead>
                 <tbody>
-                        @foreach($lignesPage as $ligne)
-                        <tr>
-                                <td class="col-qte">{{ $ligne->quantite }}</td>
-                                <td class="col-des">{{ $ligne->description }}</td>
-                                <td class="col-pu">{{ number_format($ligne->prix_unitaire, 2, ',', ' ') }}</td>
-                                <td class="col-mt">{{ number_format($ligne->quantite * $ligne->prix_unitaire, 2, ',', ' ') }}</td>
+                                                <tr>
+                                <td class="col-qte">4</td>
+                                <td class="col-des">nice</td>
+                                <td class="col-pu">48,00</td>
+                                <td class="col-mt">192,00</td>
                         </tr>
-                        @endforeach
-
-                        @php $empty = max(0, 12 - $lignesPage->count()); @endphp
-                        @for($i = 0; $i < $empty; $i++)
-                        <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
-                        @endfor
-                </tbody>
+                        
+                                                                        <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                        </tbody>
         </table>
 
-        @if($isLastPage)
-            <table class="totals-table">
+                    <table class="totals-table">
                 <tr>
                     <td class="t-label-cell">TOTAL H.T.</td>
-                    <td class="t-value-cell">{{ number_format($totalHT, 2, ',', ' ') }}</td>
+                    <td class="t-value-cell">192,00</td>
                 </tr>
                 <tr>
                     <td class="t-label-cell">T.V.A. (20 %)</td>
-                    <td class="t-value-cell">{{ number_format($tva, 2, ',', ' ') }}</td>
+                    <td class="t-value-cell">38,40</td>
                 </tr>
                 <tr class="ttc">
                     <td class="t-label-cell">TOTAL T.T.C.</td>
-                    <td class="t-value-cell">{{ number_format($ttc, 2, ',', ' ') }}</td>
+                    <td class="t-value-cell">230,40</td>
                 </tr>
             </table>
-        @elseif(!$hasMultiplePages)
-            <table class="totals-table">
-                <tr>
-                    <td class="t-label-cell">TOTAL H.T.</td>
-                    <td class="t-value-cell">{{ number_format($totalHT, 2, ',', ' ') }}</td>
-                </tr>
-                <tr>
-                    <td class="t-label-cell">T.V.A. (20 %)</td>
-                    <td class="t-value-cell">{{ number_format($tva, 2, ',', ' ') }}</td>
-                </tr>
-                <tr class="ttc">
-                    <td class="t-label-cell">TOTAL T.T.C.</td>
-                    <td class="t-value-cell">{{ number_format($ttc, 2, ',', ' ') }}</td>
-                </tr>
-            </table>
-        @endif
-
+        
     </div>
-    @endforeach
-</div>
+    </div>
 
 </body>
 </html>
