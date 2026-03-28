@@ -245,7 +245,7 @@ html, body {
         @if($isFirstPage)
             <table class="header-table">
                 <tr>
-                    <td class="logo-td"><img class="logo" src="{{ public_path('logo.png') }}" alt="Logo"></td>
+                    <td class="logo-td"><img class="logo" src="data:image/jpeg;base64,{{ base64_encode(file_get_contents(public_path('logo-small.jpg'))) }}" alt="Logo"></td>
                     <td class="company-td">
                         <div class="company">EQUIPEMENT CHEFCHAOUNI SARL</div>
                         <div class="slogan">
