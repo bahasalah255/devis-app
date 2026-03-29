@@ -6,6 +6,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ProduitController;
 use App\Http\Controllers\DevisController;
 use App\Http\Controllers\DevisLigneController;
+use App\Http\Controllers\TextExtractionController;
 //Routes
 Route::post('/login',    [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -13,6 +14,8 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::middleware('auth:sanctum')->group(function () {
 	Route::post('/logout', [AuthController::class, 'logout']);
 	Route::get('/me', [AuthController::class, 'me']);
+	Route::post('/parse-devis', [TextExtractionController::class, 'extractDevisLignes']);
+	Route::post('/devis/extract-lignes', [TextExtractionController::class, 'extractDevisLignes']);
 
 	// Devis index_archive
 	Route::apiResource('devis', DevisController::class);
