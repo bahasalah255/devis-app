@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
-
+import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 const navItems = [
-  { label: "Home", icon: "🏠" },
-  { label: "Clients", icon: "👥" },
-  { label: "Products", icon: "📦" },
+  { label: "Dash", icon: <FontAwesome name="home" size={28} color="#fff" /> },
+  { label: "Clients", icon: <FontAwesome name="users" size={28} color="#fff" /> },
+  { label: "Products", icon: <FontAwesome name="cube" size={28} color="#fff" /> },
+  { label: "Parameters", icon: <MaterialIcons name="settings" size={28} color="#fff" /> },
 ];
 
-export default function Navbar() {
+export default function Navbar({ onChange }) {
   const [active, setActive] = useState("Home");
-
+  const handlePress = (label) => {
+    setActive(label);
+    if (onChange) onChange(label); // call parent callback
+  };
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Horizontal Navbar */}
@@ -22,23 +26,24 @@ export default function Navbar() {
             <TouchableOpacity
               key={item.label}
               style={[styles.navItem, active === item.label && styles.navItemActive]}
-              onPress={() => setActive(item.label)}
+              onPress={() => {setActive(item.label)
+                handlePress(item.label)}
+              }
+              
               activeOpacity={0.7}
             >
               <Text style={styles.navIcon}>{item.icon}</Text>
+              {/*
               <Text style={[styles.navLabel, active === item.label && styles.navLabelActive]}>
                 {item.label}
               </Text>
+              */}
+              {/* 
               {active === item.label && <View style={styles.activeDot} />}
+              */}
             </TouchableOpacity>
           ))}
         </View>
-      </View>
-
-      {/* Page Content */}
-      <View style={styles.content}>
-        <Text style={styles.contentTitle}>{active}</Text>
-        <Text style={styles.contentSub}>You are on the {active} page.</Text>
       </View>
     </SafeAreaView>
   );
@@ -46,9 +51,9 @@ export default function Navbar() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    //flex: 1,
+    flex: 0,
     backgroundColor: "#e3ebff",
-    height: 35,
+    //height: 35,
   },
   navbar: {
     backgroundColor: "#e2e5ec",
@@ -66,15 +71,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: -0.5,
   },
-  brandAccent: {
-    color: "#818cf8",
-    fontSize: 14,
-    fontWeight: "600",
-  },
+ 
   navLinks: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 50,
   },
   navItem: {
     flexDirection: "row",
@@ -98,15 +99,6 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: "#fff",
-  },
-  activeDot: {
-    position: "absolute",
-    bottom: 2,
-    left: "50%",
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#818cf8",
   },
   content: {
     flex: 1,
