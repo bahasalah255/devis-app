@@ -12,6 +12,7 @@ import {
 	TouchableOpacity,
 	View,
 } from 'react-native';
+import CameraScreen from './Camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import * as DocumentPicker from 'expo-document-picker';
@@ -357,6 +358,9 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 					<TouchableOpacity style={[s.tab, mode === 'pdf' && s.tabActive]} onPress={() => setMode('pdf')}>
 						<Text style={[s.tabTxt, mode === 'pdf' && s.tabTxtActive]}>Scanner doc</Text>
 					</TouchableOpacity>
+					<TouchableOpacity style={[s.tab, mode === 'camera' && s.tabActive]} onPress={() => setMode('camera')}>
+						<Text style={[s.tabTxt, mode === 'camera' && s.tabTxtActive]}>Prendre photo</Text>
+					</TouchableOpacity>
 				</View>
 
 				<FlatList
@@ -382,6 +386,18 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 									<TouchableOpacity style={s.mainBtn} onPress={handleParseText} disabled={loading}>
 										{loading ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Analyser le texte</Text>}
 									</TouchableOpacity>
+								</>
+							) : mode === 'camera' ? (
+								<>
+									<Text style={s.cardTitle}>Prendre une photo du document</Text>
+									<CameraScreen
+										onCaptured={(asset) => {
+											setPickedFile(asset);
+											setError(null);
+											setMode('pdf');
+										}}
+										onCancel={() => setMode('pdf')}
+									/>
 								</>
 							) : (
 								<>
