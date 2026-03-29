@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page {
+    margin-top: 20px;
+    margin-bottom: 0px; /* Zero margin bottom to simplify bounds */
+    margin-left: 0px;
+    margin-right: 0px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    font-family: DejaVu Sans, sans-serif;
+    color: #1f2f6f;
+    font-size: 12px;
+}
+
+#footer {
+    position: fixed; 
+    bottom: 0px; /* Force lock physically to the bottom-most pixel of the paper */
+    left: 0px; 
+    right: 0px;
+    height: 76px;
+    background-color: #1f2f6f;
+}
+
+.footer-table {
+    width: 100%;
+    height: 100%;
+    border-collapse: collapse;
+}
+
+.footer-table td {
+    color: white;
+    text-align: center;
+    font-size: 10px;
+    line-height: 1.8;
+    vertical-align: middle;
+    padding: 0 20px;
+}
+
+.content-wrapper {
+    width: 86%;
+    margin: 0 auto;
+}
+
+/* ══ HEADER ══ */
+.header-table {
+    width: 100%;
+    border-bottom: 2.5px solid #1f2f6f;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+}
+.header-table td {
+    vertical-align: middle;
+}
+.logo-td {
+    width: 80px;
+}
+.logo {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    border: 1px solid #d0d6ee;
+}
+.company-td {
+    text-align: center;
+}
+.company {
+    font-size: 28px;
+    font-weight: bold;
+    font-family: "Times New Roman", serif;
+    letter-spacing: 2px;
+    line-height: 1.1;
+}
+.slogan {
+    font-size: 11px;
+    color: #3a4a9f;
+    margin-top: 4px;
+}
+
+/* ══ META ══ */
+.meta-table {
+    width: 100%;
+    margin-bottom: 12px;
+}
+.meta-table td {
+    vertical-align: middle;
+}
+.client-td {
+    width: 45%;
+}
+.client-box {
+    border: 2px solid #1f2f6f;
+    border-radius: 80px;
+    padding: 8px 20px;
+    font-size: 18px;
+    font-weight: bold;
+    text-align: left;
+    display: inline-block;
+}
+.info-td {
+    width: 55%;
+    text-align: right;
+}
+.info-box {
+    display: inline-block;
+    width: 320px;
+    border: 2px solid #1f2f6f;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    text-align: left;
+}
+.info-box b { font-weight: bold; }
+
+/* ══ ITEMS TABLE ══ */
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 2px solid #1f2f6f;
+    margin-bottom: 15px;
+}
+
+.items-table thead tr { background-color: #1f2f6f; }
+
+.items-table th {
+    color: white;
+    padding: 6px 7px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.items-table td {
+    padding: 2px 7px;
+    font-size: 14.5px;
+    font-weight: 400;
+    line-height: 1.4;
+    border-bottom: 1px solid #d0d6ee;
+    vertical-align: middle;
+    height: 28px;
+}
+
+.items-table tbody tr:nth-child(even) td { background-color: #f2f4fb; }
+.items-table tbody tr:last-child td { border-bottom: none; }
+
+.col-qte { width: 11%; text-align: center; }
+.col-des { width: 51%; }
+.col-pu  { width: 18%; text-align: right; }
+.col-mt  { width: 20%; text-align: right; font-weight: bold; }
+
+/* ══ TOTALS ══ */
+.totals-table {
+    width: 240px;
+    border: 2px solid #1f2f6f;
+    border-radius: 4px;
+    border-collapse: collapse;
+    float: right;
+}
+
+.totals-table td {
+    padding: 7px 12px;
+    font-size: 12.5px;
+    border-bottom: 1px solid #d0d6ee;
+}
+
+.t-label-cell {
+    background-color: #1f2f6f;
+    color: white;
+    width: 105px;
+}
+
+.t-value-cell {
+    background-color: #fff;
+    font-weight: bold;
+    text-align: right;
+    width: 135px;
+}
+
+.totals-table tr.ttc .t-label-cell {
+    background-color: #0f1d52;
+    font-size: 13px;
+    font-weight: bold;
+    border-bottom: none;
+}
+.totals-table tr.ttc .t-value-cell {
+    background-color: #e8ebf7;
+    font-size: 13px;
+    color: #0f1d52;
+    border-bottom: none;
+}
+
+.invoice-page {
+    page-break-after: always;
+}
+
+.invoice-page:last-child {
+    page-break-after: auto;
+}
+</style>
+</head>
+<body>
+
+<div id="footer">
+    <table class="footer-table">
+        <tr>
+            <td>
+                54, Bd Chefchaouni Aïn Sebaâ &mdash; CASABLANCA<br>
+                Tél&nbsp;: 022.35.33.82 / 022.66.17.87 &nbsp;&nbsp;|&nbsp;&nbsp; Fax&nbsp;: 022.66.17.87<br>
+                I.F.&nbsp;: 1682364 &nbsp;·&nbsp; Patente&nbsp;: 31590255 &nbsp;·&nbsp; R.C.&nbsp;: 185015
+                &nbsp;·&nbsp; C.N.S.S.&nbsp;: 7842702 &nbsp;·&nbsp; ICE&nbsp;: 000013024000074<br>
+                E-mail&nbsp;: eqchefchaouni@gmail.com
+            </td>
+        </tr>
+    </table>
+</div>
+
+
+<div class="content-wrapper">
+            <div class="invoice-page">
+        
+                    <table class="header-table">
+                <tr>
+                    <td class="logo-td"><img class="logo" src="/Users/moaad/Projects/devis-app/back-end/public/logo.png" alt="Logo"></td>
+                    <td class="company-td">
+                        <div class="company">EQUIPEMENT CHEFCHAOUNI SARL</div>
+                        <div class="slogan">
+                                Outillages à main &nbsp;·&nbsp; Électricité &nbsp;·&nbsp; Sanitaire &nbsp;·&nbsp;
+                                Quincaillerie &nbsp;·&nbsp; Outillages électroportatifs &nbsp;·&nbsp; Peintures
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="meta-table">
+                <tr>
+                    <td class="client-td">
+                        <div class="client-box">Devis N°&nbsp;: 1</div>
+                    </td>
+                    <td class="info-td">
+                        <div class="info-box">
+                                <b>Farrell-O&#039;Hara</b><br>
+                                <b>Date&nbsp;:</b> 2026-03-28<br>
+                                <b>Valide jusqu'au&nbsp;:</b> 2026-04-27<br>
+                                <b>Tél&nbsp;:</b> 0662965732
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        
+        <table class="items-table">
+                <thead>
+                        <tr>
+                                <th class="col-qte">Qté</th>
+                                <th class="col-des">Désignation</th>
+                                <th class="col-pu">P.U. H.T.</th>
+                                <th class="col-mt">Montant H.T.</th>
+                        </tr>
+                </thead>
+                <tbody>
+                                                <tr>
+                                <td class="col-qte">4</td>
+                                <td class="col-des">nice</td>
+                                <td class="col-pu">48,00</td>
+                                <td class="col-mt">192,00</td>
+                        </tr>
+                        
+                                                                        <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                                <tr><td class="col-qte">&nbsp;</td><td class="col-des"></td><td class="col-pu"></td><td class="col-mt"></td></tr>
+                                        </tbody>
+        </table>
+
+                    <table class="totals-table">
+                <tr>
+                    <td class="t-label-cell">TOTAL H.T.</td>
+                    <td class="t-value-cell">192,00</td>
+                </tr>
+                <tr>
+                    <td class="t-label-cell">T.V.A. (20 %)</td>
+                    <td class="t-value-cell">38,40</td>
+                </tr>
+                <tr class="ttc">
+                    <td class="t-label-cell">TOTAL T.T.C.</td>
+                    <td class="t-value-cell">230,40</td>
+                </tr>
+            </table>
+        
+    </div>
+    </div>
+
+</body>
+</html>

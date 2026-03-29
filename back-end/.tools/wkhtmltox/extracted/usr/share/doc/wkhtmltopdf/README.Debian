@@ -1,0 +1,19 @@
+Wkhtmltopdf without X server
+----------------------------
+
+Due to its dependency on Qt-WebKit, wkhtmltopdf requires an X11 server to
+run. If you want to provide an automated service or use wkhtmltopdf from a
+webserver, it could be convenient to use a virtual X11 server (like Xvfb).
+The xvfb Debian package contains a wrapper which makes it trivial:
+
+    xvfb-run -- wkhtmltopdf [options]
+
+Another way (thanks to Dimitrios Zorbas on #847936) is to use the not well
+documented QT_QPA_* environment variables. The rendering (especially for
+fonts) could be uncertain but it could be useful in some cases.
+
+    QT_QPA_FONTDIR=/usr/share/fonts/truetype/dejavu/ \
+    QT_QPA_PLATFORM=offscreen \
+    wkhtmltopdf [options]
+
+ -- Emmanuel Bouthenot <kolter@debian.org>  Tue, 27 Mar 2018 23:13:36 +0200

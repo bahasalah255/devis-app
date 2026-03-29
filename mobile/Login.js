@@ -53,8 +53,17 @@ export default function Login({ navigation }) {
 			await AsyncStorage.setItem('token', response.data.token);
 			await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
 			navigation.replace('Dash');
-		} catch {
-			Alert.alert('Connexion échouée', 'Email ou mot de passe incorrect.');
+		} catch (error) {
+			if (!error?.response) {
+				Alert.alert(
+					'Connexion impossible',
+					`Serveur API injoignable (${API_BASE_URL}). Vérifiez IP/port et que le backend tourne.`
+				);
+			} else if (error.response.status === 422 || error.response.status === 401) {
+				Alert.alert('Connexion échouée', 'Email ou mot de passe incorrect.');
+			} else {
+				Alert.alert('Erreur', `Échec de connexion (HTTP ${error.response.status}).`);
+			}
 		} finally {
 			setLoading(false);
 		}

@@ -22,7 +22,7 @@ return new class extends Migration
             $table->decimal('total_ht', 10, 2)->default(0);
             $table->decimal('tva', 5, 2)->default(20.00);
             $table->decimal('total_ttc', 10, 2)->default(0);
-            $table->boolean('archive')->default(0)->after('total');
+            $table->boolean('archive')->default(0);
             $table->timestamps();
         });
     }
