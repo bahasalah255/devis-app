@@ -26,7 +26,7 @@ html, body {
     bottom: 0px; /* Force lock physically to the bottom-most pixel of the paper */
     left: 0px; 
     right: 0px;
-    height: 76px;
+    height: 105px;
     background-color: #1f2f6f;
 }
 
@@ -40,9 +40,23 @@ html, body {
     color: white;
     text-align: center;
     font-size: 10px;
-    line-height: 1.8;
+    line-height: 1.6;
     vertical-align: middle;
-    padding: 0 20px;
+    padding: 0;
+}
+
+.footer-line {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
+.footer-content {
+    width: 86%;
+    margin: 0 auto;
+    text-align: center;
+     position: relative;
+  left: 102px;
 }
 
 .content-wrapper {
@@ -64,10 +78,9 @@ html, body {
     width: 80px;
 }
 .logo {
-    width: 64px;
-    height: 64px;
+    width: 120px;
+    height: 110px;
     object-fit: contain;
-    border: 1px solid #d0d6ee;
 }
 .company-td {
     text-align: center;
@@ -211,19 +224,7 @@ html, body {
 </head>
 <body>
 
-<div id="footer">
-    <table class="footer-table">
-        <tr>
-            <td>
-                54, Bd Chefchaouni Aïn Sebaâ &mdash; CASABLANCA<br>
-                Tél&nbsp;: 022.35.33.82 / 022.66.17.87 &nbsp;&nbsp;|&nbsp;&nbsp; Fax&nbsp;: 022.66.17.87<br>
-                I.F.&nbsp;: 1682364 &nbsp;·&nbsp; Patente&nbsp;: 31590255 &nbsp;·&nbsp; R.C.&nbsp;: 185015
-                &nbsp;·&nbsp; C.N.S.S.&nbsp;: 7842702 &nbsp;·&nbsp; ICE&nbsp;: 000013024000074<br>
-                E-mail&nbsp;: eqchefchaouni@gmail.com
-            </td>
-        </tr>
-    </table>
-</div>
+
 
 @php
     $lignesPages = $devis->lignes->chunk(12);
@@ -245,7 +246,7 @@ html, body {
         @if($isFirstPage)
             <table class="header-table">
                 <tr>
-                    <td class="logo-td"><img class="logo" src="data:image/jpeg;base64,{{ base64_encode(file_get_contents(public_path('logo-small.jpg'))) }}" alt="Logo"></td>
+                    <td class="logo-td"><img class="logo" src="data:image/jpeg;base64,{{ base64_encode(file_get_contents(public_path('logo.jpg'))) }}" alt="Logo"></td>
                     <td class="company-td">
                         <div class="company">EQUIPEMENT CHEFCHAOUNI SARL</div>
                         <div class="slogan">
@@ -317,6 +318,21 @@ html, body {
                     <td class="t-value-cell">{{ number_format($ttc, 2, ',', ' ') }}</td>
                 </tr>
             </table>
+            <div id="footer">
+    <table class="footer-table">
+        <tr>
+            <td>
+                <div class="footer-content">
+                    <span class="footer-line">54, Bd Chefchaouni Aïn Sebaâ — CASABLANCA</span>
+                    <span class="footer-line">Tél : 022.35.33.82 / 022.66.17.87 | Fax : 022.66.17.87</span>
+                    <span class="footer-line">I.F. : 1682364 · Patente : 31590255 · R.C. : 185015</span>
+                    <span class="footer-line">C.N.S.S. : 7842702 · ICE : 000013024000074</span>
+                    <span class="footer-line">E-mail : eqchefchaouni@gmail.com</span>
+                </div>
+            </td>
+        </tr>
+    </table>
+</div>
         @elseif(!$hasMultiplePages)
             <table class="totals-table">
                 <tr>

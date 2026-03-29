@@ -11,7 +11,9 @@ import {
 	ActivityIndicator,
 	SafeAreaView,
 } from 'react-native';
+import Navbar from './Navbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 
@@ -246,15 +248,21 @@ export default function Dash({ navigation }) {
 					<TouchableOpacity activeOpacity={0.8} style={s.archiveMini} onPress={() => handleArchive(item.id)}>
 						<Text style={s.archiveMiniTxt}>🗂</Text>
 					</TouchableOpacity>
-					<TouchableOpacity  onPress={() => downloadInvoice(item.id)}>
-    <Text >📄</Text>
+					<TouchableOpacity style={s.button} onPress={() => downloadInvoice(item.id)}>
+    <MaterialIcons name="file-download" size={24} color="white" />
 </TouchableOpacity>
+ 
+{/*}
   <TouchableOpacity
                 
                 onPress={() => sendPdfWhatsApp(item.id)}
             >
                 <Text>📲</Text>
             </TouchableOpacity>
+			{/* WhatsApp Button */}
+      <TouchableOpacity style={s.button} onPress={() => sendPdfWhatsApp(item.id)}>
+        <FontAwesome name="whatsapp" size={24} color="white" />
+      </TouchableOpacity>
 				</View>
 
 				<View style={s.rowBetween}>
@@ -264,9 +272,14 @@ export default function Dash({ navigation }) {
 			</TouchableOpacity>
 		);
 	};
-
+	const handleNavChange = (page) => {
+    console.log("Active page:", page);
+	navigation.navigate(page)
+    // t9dr tdir logic bach tbdl content
+  };
 	return (
 		<SafeAreaView style={s.safe}>
+			
 			<View style={s.header}>
 				<View>
 					<Text style={s.hello}>Bonjour</Text>
@@ -276,7 +289,7 @@ export default function Dash({ navigation }) {
 					<Text style={s.logoutTxt}>Déconnexion</Text>
 				</TouchableOpacity>
 			</View>
-
+		
 			<View style={s.quickActions}>
 				<TouchableOpacity activeOpacity={0.9} style={s.primaryBtn} onPress={() => navigation.replace('CreateDevis')}>
 					<Text style={s.primaryBtnTxt}>+ Nouveau devis</Text>
@@ -321,14 +334,28 @@ export default function Dash({ navigation }) {
 					}
 				/>
 			)}
+			<Navbar onChange={handleNavChange} />
+			
 		</SafeAreaView>
 	);
+	
 }
 
 const s = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: C.bg },
 	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
+	 button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#25D366', // WhatsApp green
+    padding: 10,
+    borderRadius: 8,
+  },
+  text: {
+    color: 'white',
+    marginLeft: 8,
+    fontWeight: 'bold',
+  },
 	header: {
 		paddingHorizontal: 16,
 		paddingVertical: 12,
