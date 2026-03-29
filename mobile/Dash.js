@@ -12,6 +12,7 @@ import {
 	ActivityIndicator,
 	SafeAreaView,
 } from 'react-native';
+import Navbar from './Navbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
@@ -194,6 +195,7 @@ export default function Dash({ navigation }) {
 
 	return (
 		<SafeAreaView style={s.safe}>
+			
 			<View style={s.header}>
 				<View>
 					<Text style={s.hello}>Bonjour</Text>
@@ -203,7 +205,7 @@ export default function Dash({ navigation }) {
 					<Text style={s.logoutTxt}>Déconnexion</Text>
 				</TouchableOpacity>
 			</View>
-
+		
 			<View style={s.quickActions}>
 				<TouchableOpacity activeOpacity={0.9} style={s.primaryBtn} onPress={() => navigation.replace('CreateDevis')}>
 					<Text style={s.primaryBtnTxt}>+ Nouveau devis</Text>
@@ -248,8 +250,11 @@ export default function Dash({ navigation }) {
 					}
 				/>
 			)}
+			<Navbar />
+			
 		</SafeAreaView>
 	);
+	
 }
 
 const s = StyleSheet.create({
