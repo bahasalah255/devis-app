@@ -294,6 +294,9 @@ export default function Dash({ navigation }) {
 				<TouchableOpacity activeOpacity={0.9} style={s.primaryBtn} onPress={() => navigation.replace('CreateDevis')}>
 					<Text style={s.primaryBtnTxt}>+ Nouveau devis</Text>
 				</TouchableOpacity>
+				<TouchableOpacity activeOpacity={0.9} style={s.secondaryBtn} onPress={() => navigation.navigate('SmartPaste')}>
+					<Text style={s.secondaryBtnTxt}>Smart Paste</Text>
+				</TouchableOpacity>
 				<TouchableOpacity activeOpacity={0.9} style={s.secondaryBtn} onPress={() => navigation.replace('Archive')}>
 					<Text style={s.secondaryBtnTxt}>Archives</Text>
 				</TouchableOpacity>
@@ -393,7 +396,7 @@ const s = StyleSheet.create({
 	},
 	primaryBtnTxt: { color: C.white, fontSize: 16, fontWeight: '700' },
 	secondaryBtn: {
-		width: 110,
+		width: 112,
 		height: 52,
 		borderRadius: 14,
 		backgroundColor: C.white,

@@ -54,14 +54,29 @@ const makeLine = () => ({
 	remise: '0',
 });
 
+const fromSmartLine = (line) => ({
+	produit_id: '',
+	nom: String(line?.designation || '').trim(),
+	description: String(line?.designation || '').trim(),
+	quantite: String(Number(line?.quantite || 1)),
+	prix_unitaire: String(Number(line?.prix_unitaire_ht || 0)),
+	remise: '0',
+});
+
 const PRODUCT_UNITS = ['unite', 'kg', 'litre', 'metre'];
 
-export default function Create({ navigation }) {
+export default function Create({ navigation, route }) {
 	const [step, setStep] = useState(1);
 	const [clientId, setClientId] = useState('');
 	const [clients, setClients] = useState([]);
 	const [produits, setProduits] = useState([]);
-	const [lignes, setLignes] = useState([makeLine()]);
+	const [lignes, setLignes] = useState(() => {
+		const prefilled = route?.params?.prefilledLines;
+		if (Array.isArray(prefilled) && prefilled.length > 0) {
+			return prefilled.map(fromSmartLine);
+		}
+		return [makeLine()];
+	});
 
 	const [clientQuery, setClientQuery] = useState('');
 	const [productQuery, setProductQuery] = useState('');
