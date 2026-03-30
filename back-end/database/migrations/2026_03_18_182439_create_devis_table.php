@@ -24,6 +24,9 @@ return new class extends Migration
             $table->decimal('total_ttc', 10, 2)->default(0);
             $table->boolean('archive')->default(0);
             $table->timestamps();
+            $table->dateTime('restored_at')->nullable(); // ✅ nullable, start countdown when restored
+            $table->dateTime('archived_at')->nullable(); // optional: track when archived
+
         });
     }
 

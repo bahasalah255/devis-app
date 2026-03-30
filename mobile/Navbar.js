@@ -1,118 +1,90 @@
-import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
+import { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
+
 const navItems = [
-  { label: "Dash", icon: <FontAwesome name="home" size={28} color="#fff" /> },
-  { label: "Clients", icon: <FontAwesome name="users" size={28} color="#fff" /> },
-  { label: "Products", icon: <FontAwesome name="cube" size={28} color="#fff" /> },
-  { label: "Parameters", icon: <MaterialIcons name="settings" size={28} color="#fff" /> },
+	{ label: 'Dash', iconType: 'fa', icon: 'home' },
+	{ label: 'Clients', iconType: 'fa', icon: 'users' },
+	{ label: 'Products', iconType: 'fa', icon: 'cube' },
+	{ label: 'Parameters', iconType: 'mi', icon: 'settings' },
 ];
 
-export default function Navbar({ onChange }) {
-  const [active, setActive] = useState("Home");
-  const handlePress = (label) => {
-    setActive(label);
-    if (onChange) onChange(label); // call parent callback
-  };
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Horizontal Navbar */}
-      <View style={styles.navbar}>
+export default function Navbar({ onChange, current = 'Dash' }) {
+	const [active, setActive] = useState(current);
+	const insets = useSafeAreaInsets();
 
-        {/* Nav Links */}
-        <View style={styles.navLinks}>
-            
-          {navItems.map((item) => (
-            <TouchableOpacity
-              key={item.label}
-              style={[styles.navItem, active === item.label && styles.navItemActive]}
-              onPress={() => {setActive(item.label)
-                handlePress(item.label)}
-              }
-              
-              activeOpacity={0.7}
-            >
-              <Text style={styles.navIcon}>{item.icon}</Text>
-              {/*
-              <Text style={[styles.navLabel, active === item.label && styles.navLabelActive]}>
-                {item.label}
-              </Text>
-              */}
-              {/* 
-              {active === item.label && <View style={styles.activeDot} />}
-              */}
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    </SafeAreaView>
-  );
+	useEffect(() => {
+		setActive(current);
+	}, [current]);
+
+	const handlePress = (label) => {
+		setActive(label);
+		if (onChange) onChange(label);
+	};
+
+	return (
+		<SafeAreaView style={styles.safeArea}>
+			<View style={[styles.navbar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+				{navItems.map((item) => {
+					const isActive = active === item.label;
+					const color = isActive ? '#4F46E5' : '#8E8E93';
+
+					return (
+						<TouchableOpacity
+							key={item.label}
+							style={[styles.navItem, isActive && styles.navItemActive]}
+							onPress={() => handlePress(item.label)}
+							activeOpacity={0.8}
+						>
+							{item.iconType === 'fa' ? (
+								<FontAwesome name={item.icon} size={20} color={color} />
+							) : (
+								<MaterialIcons name={item.icon} size={22} color={color} />
+							)}
+							<Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
+						</TouchableOpacity>
+					);
+				})}
+			</View>
+		</SafeAreaView>
+	);
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 0,
-    backgroundColor: "#e3ebff",
-    //height: 35,
-  },
-  navbar: {
-    backgroundColor: "#e2e5ec",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.07)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 35,
-  },
-  brand: {
-    fontWeight: "700",
-    fontSize: 18,
-    color: "#fff",
-    letterSpacing: -0.5,
-  },
- 
-  navLinks: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 50,
-  },
-  navItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    position: "relative",
-  },
-  navItemActive: {
-    backgroundColor: "rgba(99,102,241,0.15)",
-  },
-  navIcon: {
-    fontSize: 14,
-  },
-  navLabel: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.45)",
-  },
-  navLabelActive: {
-    color: "#fff",
-  },
-  content: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  contentTitle: {
-    fontSize: 36,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  contentSub: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.4)",
-  },
+	safeArea: {
+		backgroundColor: '#F2F2F7',
+		borderTopWidth: 1,
+		borderTopColor: '#E5E5EA',
+	},
+	navbar: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingHorizontal: 10,
+		paddingTop: 8,
+		paddingBottom: 10,
+		backgroundColor: '#FFFFFF',
+	},
+	navItem: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingVertical: 6,
+		borderRadius: 12,
+		marginHorizontal: 4,
+	},
+	navItemActive: {
+		backgroundColor: '#EEF2FF',
+	},
+	navLabel: {
+		marginTop: 4,
+		fontSize: 11,
+		fontWeight: '600',
+		color: '#8E8E93',
+	},
+	navLabelActive: {
+		color: '#4F46E5',
+		fontWeight: '700',
+	},
 });
