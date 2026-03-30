@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
@@ -46,6 +46,7 @@ export default function Dash({ navigation }) {
 	const [devis, setDevis] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const autoArchivedRef = useRef(new Set());
 
 	const load = async (refresh = false) => {
 		refresh ? setRefreshing(true) : setLoading(true);
@@ -202,13 +203,8 @@ export default function Dash({ navigation }) {
     }
 		
 	}
-	const handleArchive = (id) => {
-		Alert.alert('Archiver', 'Archiver ce devis ?', [
-			{ text: 'Annuler', style: 'cancel' },
-			{
-				text: 'Archiver',
-				style: 'destructive',
-				onPress: async () => {
+	const handleArchive = async (id) => {
+				
 					try {
 						const token = await AsyncStorage.getItem('token');
 						await axios.patch(`${API_BASE_URL}/Archive/${id}`, {}, {
@@ -220,16 +216,39 @@ export default function Dash({ navigation }) {
 						load(true);
 					} catch {
 						Alert.alert('Erreur', 'Archive impossible.');
-					}
-				},
-			},
-		]);
+					
+				
 	};
+}
 
 	const stats = useMemo(() => {
 		const accepted = devis.filter((d) => d.statut === 'accepte').length;
 		const total = devis.reduce((sum, d) => sum + Number(d.total_ttc || 0), 0);
 		return { accepted, total };
+	}, [devis]);
+
+	useEffect(() => {
+		const now = Date.now();
+		const toArchive = devis.filter((item) => {
+			if (!item?.id || !item?.created_at) return false;
+			if (autoArchivedRef.current.has(item.id)) return false;
+
+			const itemDate = item.restored_at ? new Date(String(item.restored_at).replace(' ', 'T')) :
+			new Date(String(item.created_at).replace(' ', 'T')) ;
+			if (Number.isNaN(itemDate.getTime())) return false;
+
+			const diffDays = (now - itemDate.getTime()) / (1000 * 60 * 60 * 24);
+			return diffDays > 2;
+		});
+
+		if (!toArchive.length) return;
+
+		toArchive.forEach((item) => {
+			autoArchivedRef.current.add(item.id);
+			handleArchive(item.id).catch(() => {
+				autoArchivedRef.current.delete(item.id);
+			});
+		});
 	}, [devis]);
 
 	const renderItem = ({ item }) => {
@@ -245,7 +264,7 @@ export default function Dash({ navigation }) {
 						<Text style={s.cardNumber}>{item.numero || `DEV-${item.id}`}</Text>
 						<Text style={s.cardClient} numberOfLines={1}>{item?.client?.nom || 'Client inconnu'}</Text>
 					</View>
-					<TouchableOpacity activeOpacity={0.8} style={s.archiveMini} onPress={() => handleArchive(item.id)}>
+					<TouchableOpacity activeOpacity={0.8} style={s.archiveMini} onPress={() => handleArchive(item.id) }>
 						<Text style={s.archiveMiniTxt}>🗂</Text>
 					</TouchableOpacity>
 					<TouchableOpacity style={s.button} onPress={() => downloadInvoice(item.id)}>

@@ -157,7 +157,7 @@ class DevisController extends Controller
     {
         $devis = Devis::where('user_id', $request->user()->id)->findOrFail($id);
           //$devis = Devis::findOrFail($id);
-          $devis->update(['archive' => 1]);
+          $devis->update(['archive' => 1,'archived_at' => date('Y-m-d H:i:s'),]);
           return response()->json($devis);
     
     }
@@ -165,7 +165,7 @@ class DevisController extends Controller
     {
         $devis = Devis::where('user_id', $request->user()->id)->findOrFail($id);
           //$devis = Devis::findOrFail($id);
-          $devis->update(['archive' => 0]);
+          $devis->update(['archive' => 0 , 'restored_at' => date('Y-m-d H:i:s')]);
           return response()->json($devis);
     
     }
