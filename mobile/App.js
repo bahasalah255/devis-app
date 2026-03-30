@@ -1,4 +1,4 @@
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar, Platform } from 'react-native';
 import Login from './Login.js';
 import Dash from './Dash.js';
 import Create from './Create.js';
@@ -18,7 +18,11 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer>
-        <StatusBar style="auto" />
+        <StatusBar
+          barStyle={Platform.OS === 'ios' ? 'dark-content' : 'light-content'}
+          backgroundColor={Platform.OS === 'android' ? '#4F46E5' : 'transparent'}
+          translucent={Platform.OS === 'android'}
+        />
         <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login"       component={Login} />
           <Stack.Screen name="Dash"        component={Dash} />

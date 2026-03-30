@@ -10,29 +10,17 @@ import {
 	Alert,
 	ActivityIndicator,
 	SafeAreaView,
+	Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Navbar from './Navbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
+import { COLORS, SPACING, SHADOW, KEYBOARD_BEHAVIOR } from './utils/platformStyles';
 
-const C = {
-	bg: '#F2F2F7',
-	white: '#FFFFFF',
-	accent: '#4F46E5',
-	text: '#1C1C1E',
-	sub: '#8E8E93',
-	border: '#E5E5EA',
-};
-
-const SHADOW = {
-	shadowColor: '#000',
-	shadowOpacity: 0.06,
-	shadowRadius: 8,
-	shadowOffset: { width: 0, height: 3 },
-	elevation: 2,
-};
+const C = COLORS;
 
 const statusMeta = {
 	brouillon: { label: 'Brouillon', dot: '⚪' },
@@ -47,6 +35,7 @@ export default function Dash({ navigation }) {
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const autoArchivedRef = useRef(new Set());
+	const insets = useSafeAreaInsets();
 
 	const load = async (refresh = false) => {
 		refresh ? setRefreshing(true) : setLoading(true);
@@ -260,28 +249,21 @@ export default function Dash({ navigation }) {
 				onPress={() => navigation.navigate('UpdateDevis', { devis: item })}
 			>
 				<View style={s.cardTop}>
-					<View style={{ flex: 1 }}>
+					<View style={s.cardLeft}>
 						<Text style={s.cardNumber}>{item.numero || `DEV-${item.id}`}</Text>
 						<Text style={s.cardClient} numberOfLines={1}>{item?.client?.nom || 'Client inconnu'}</Text>
 					</View>
-					<TouchableOpacity activeOpacity={0.8} style={s.archiveMini} onPress={() => handleArchive(item.id) }>
-						<Text style={s.archiveMiniTxt}>🗂</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={s.button} onPress={() => downloadInvoice(item.id)}>
-    <MaterialIcons name="file-download" size={24} color="white" />
-</TouchableOpacity>
- 
-{/*}
-  <TouchableOpacity
-                
-                onPress={() => sendPdfWhatsApp(item.id)}
-            >
-                <Text>📲</Text>
-            </TouchableOpacity>
-			{/* WhatsApp Button */}
-      <TouchableOpacity style={s.button} onPress={() => sendPdfWhatsApp(item.id)}>
-        <FontAwesome name="whatsapp" size={24} color="white" />
-      </TouchableOpacity>
+					<View style={s.cardActions}>
+						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => handleArchive(item.id)}>
+							<MaterialIcons name="archive" size={20} color="white" />
+						</TouchableOpacity>
+						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => downloadInvoice(item.id)}>
+							<MaterialIcons name="file-download" size={20} color="white" />
+						</TouchableOpacity>
+						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => sendPdfWhatsApp(item.id)}>
+							<FontAwesome name="whatsapp" size={20} color="white" />
+						</TouchableOpacity>
+					</View>
 				</View>
 
 				<View style={s.rowBetween}>
@@ -297,9 +279,8 @@ export default function Dash({ navigation }) {
     // t9dr tdir logic bach tbdl content
   };
 	return (
-		<SafeAreaView style={s.safe}>
-			
-			<View style={s.header}>
+			<SafeAreaView style={s.safe} edges={['top', 'right', 'bottom', 'left']}>
+			<View style={[s.header, { paddingTop: Math.max(insets.top, 10) }]}>
 				<View>
 					<Text style={s.hello}>Bonjour</Text>
 					<Text style={s.name}>{user?.name || 'Utilisateur'}</Text>
@@ -332,7 +313,7 @@ export default function Dash({ navigation }) {
 				</View>
 				<View style={s.statCard}>
 					<Text style={s.statLabel}>Montant</Text>
-					<Text style={s.statValue}>{stats.total.toFixed(0)}</Text>
+					<Text style={s.statValue}>{stats.total.toFixed(0)} DHS</Text>
 				</View>
 			</View>
 
@@ -356,7 +337,7 @@ export default function Dash({ navigation }) {
 					}
 				/>
 			)}
-			<Navbar onChange={handleNavChange} />
+			<Navbar onChange={handleNavChange} current="Dash" />
 			
 		</SafeAreaView>
 	);
@@ -366,115 +347,145 @@ export default function Dash({ navigation }) {
 const s = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: C.bg },
 	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-	 button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#25D366', // WhatsApp green
-    padding: 10,
-    borderRadius: 8,
-  },
-  text: {
-    color: 'white',
-    marginLeft: 8,
-    fontWeight: 'bold',
-  },
 	header: {
 		paddingHorizontal: 16,
-		paddingVertical: 12,
+		paddingVertical: 10,
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
+		backgroundColor: C.white,
+		borderBottomWidth: 1,
+		borderBottomColor: C.border,
 	},
-	hello: { color: C.sub, fontSize: 13 },
-	name: { color: C.text, fontSize: 22, fontWeight: '700' },
+	hello: { color: C.sub, fontSize: 11, fontWeight: '500' },
+	name: { color: C.text, fontSize: 22, fontWeight: '800', marginTop: 0 },
 	logoutBtn: {
-		height: 40,
+		height: 36,
 		paddingHorizontal: 14,
 		borderRadius: 12,
 		borderWidth: 1,
 		borderColor: C.border,
 		backgroundColor: C.white,
 		justifyContent: 'center',
+		...SHADOW,
 	},
-	logoutTxt: { color: C.text, fontSize: 13, fontWeight: '600' },
+	logoutTxt: { color: C.text, fontSize: 13, fontWeight: '700' },
 
 	quickActions: {
 		paddingHorizontal: 16,
+		paddingTop: 10,
+		paddingBottom: 8,
 		flexDirection: 'row',
 		gap: 10,
-		marginBottom: 12,
 	},
 	primaryBtn: {
 		flex: 1,
-		height: 52,
-		borderRadius: 14,
+		height: 56,
+		borderRadius: 16,
 		backgroundColor: C.accent,
 		justifyContent: 'center',
 		alignItems: 'center',
 		...SHADOW,
 	},
-	primaryBtnTxt: { color: C.white, fontSize: 16, fontWeight: '700' },
+	primaryBtnTxt: { color: C.white, fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
 	secondaryBtn: {
-		width: 112,
-		height: 52,
-		borderRadius: 14,
+		width: 110,
+		height: 56,
+		borderRadius: 16,
 		backgroundColor: C.white,
 		justifyContent: 'center',
 		alignItems: 'center',
-		borderWidth: 1,
+		borderWidth: 1.5,
 		borderColor: C.border,
 		...SHADOW,
 	},
-	secondaryBtnTxt: { color: C.text, fontSize: 14, fontWeight: '700' },
+	secondaryBtnTxt: { color: C.text, fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
 
-	statsRow: { paddingHorizontal: 16, flexDirection: 'row', gap: 8, marginBottom: 10 },
+	statsRow: {
+		paddingHorizontal: 16,
+		paddingVertical: 10,
+		flexDirection: 'row',
+		gap: 10,
+		backgroundColor: C.white,
+	},
 	statCard: {
 		flex: 1,
-		backgroundColor: C.white,
-		borderRadius: 14,
-		padding: 10,
-		borderWidth: 1,
-		borderColor: C.border,
-		...SHADOW,
-	},
-	statLabel: { color: C.sub, fontSize: 11, marginBottom: 4 },
-	statValue: { color: C.text, fontSize: 17, fontWeight: '700' },
-
-	list: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
-	card: {
-		backgroundColor: C.white,
+		backgroundColor: C.bg,
 		borderRadius: 14,
 		padding: 12,
 		borderWidth: 1,
 		borderColor: C.border,
+	},
+	statLabel: { color: C.sub, fontSize: 12, fontWeight: '600', marginBottom: 6 },
+	statValue: { color: C.text, fontSize: 18, fontWeight: '800' },
+
+	list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28, gap: 10 },
+	card: {
+		backgroundColor: C.white,
+		borderRadius: 16,
+		padding: 14,
+		borderWidth: 1,
+		borderColor: C.border,
 		...SHADOW,
 	},
-	cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-	cardNumber: { color: C.text, fontSize: 16, fontWeight: '700' },
-	cardClient: { color: C.sub, fontSize: 13, marginTop: 2 },
+	cardTop: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 10,
+	},
+	cardLeft: { flex: 1, marginRight: 10 },
+	cardNumber: { color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 2 },
+	cardClient: { color: C.sub, fontSize: 13, fontWeight: '500' },
+	cardActions: {
+		flexDirection: 'row',
+		gap: 6,
+		alignItems: 'center',
+	},
+	actionBtn: {
+		width: 36,
+		height: 36,
+		borderRadius: 10,
+		backgroundColor: C.accent,
+		justifyContent: 'center',
+		alignItems: 'center',
+		...SHADOW,
+	},
 	archiveMini: {
-		width: 34,
-		height: 34,
+		width: 36,
+		height: 36,
 		borderRadius: 10,
 		backgroundColor: '#EEF0F8',
 		justifyContent: 'center',
 		alignItems: 'center',
+		...SHADOW,
 	},
 	archiveMiniTxt: { fontSize: 16 },
-	rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-	amount: { color: C.text, fontSize: 17, fontWeight: '800' },
-	status: { color: C.sub, fontSize: 13, fontWeight: '600' },
+	button: {
+		width: 36,
+		height: 36,
+		borderRadius: 10,
+		backgroundColor: '#25D366',
+		justifyContent: 'center',
+		alignItems: 'center',
+		...SHADOW,
+	},
+	rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+	amount: { color: C.text, fontSize: 18, fontWeight: '800' },
+	status: { color: C.sub, fontSize: 12, fontWeight: '600' },
 
 	emptyCard: {
 		backgroundColor: C.white,
 		borderWidth: 1,
 		borderColor: C.border,
-		borderRadius: 14,
-		padding: 24,
+		borderRadius: 16,
+		padding: 32,
 		alignItems: 'center',
+		marginHorizontal: 16,
+		marginTop: 32,
 		...SHADOW,
 	},
-	emptyEmoji: { fontSize: 26, marginBottom: 8 },
-	emptyTitle: { color: C.text, fontSize: 16, fontWeight: '700' },
-	emptySub: { color: C.sub, fontSize: 13, marginTop: 4, textAlign: 'center' },
+	emptyEmoji: { fontSize: 32, marginBottom: 12 },
+	emptyTitle: { color: C.text, fontSize: 18, fontWeight: '800', marginBottom: 4 },
+	emptySub: { color: C.sub, fontSize: 13, textAlign: 'center', lineHeight: 20 },
 });
