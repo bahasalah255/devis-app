@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('numero')->unique();
             $table->foreignId('client_id')->constrained('clients');
+            $table->string('email')->nullable();
             $table->foreignId('user_id')->constrained('users');
             $table->enum('statut', ['brouillon', 'envoye', 'accepte', 'refuse']);
             $table->date('date_emission');
