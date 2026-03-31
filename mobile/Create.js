@@ -178,6 +178,7 @@ export default function Create({ navigation, route }) {
 				`${API_BASE_URL}/devis`,
 				{
 					client_id: Number(clientId),
+					email : clientEmail,
 					date_emission: toISO(dateEm),
 					date_validite: toISO(dateVal),
 					lignes: lignes.map((l) => ({
@@ -229,7 +230,7 @@ export default function Create({ navigation, route }) {
 			setClients((prev) => [created, ...prev]);
 			setClientId(String(created.id));
 			setClientNom('');
-			setClientEmail('');
+			setClientEmail(created.email);
 			setClientTel('');
 			setShowClientForm(false);
 		} catch (error) {
@@ -361,7 +362,7 @@ export default function Create({ navigation, route }) {
 									renderItem={({ item }) => (
 										<TouchableOpacity
 											style={[s.itemRow, String(clientId) === String(item.id) && s.itemRowActive]}
-											onPress={() => setClientId(String(item.id))}
+											onPress={() => { setClientId(String(item.id)) , setClientEmail(item.email) }}
 										>
 											<Text style={s.itemMain}>{item.nom}</Text>
 											{!!item.email && <Text style={s.itemSub}>{item.email}</Text>}

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Devis;
 use App\Models\DevisLigne;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class DevisController extends Controller
 {
@@ -32,6 +33,7 @@ class DevisController extends Controller
     {
         $request->validate([
             'client_id'    => 'required|exists:clients,id',
+            'email' => 'required|email|exists:clients,email',
             'date_emission'=> 'required|date',
             'date_validite'=> 'nullable|date',
             'lignes'       => 'required|array|min:1',
@@ -55,6 +57,7 @@ class DevisController extends Controller
         // Créer le devis
         $devis = Devis::create([
             'client_id'     => $request->client_id,
+            'email'         => $request->email,
             'user_id'       => $request->user()->id,
             'statut'        => 'brouillon',
             'date_emission' => $request->date_emission,
@@ -97,6 +100,7 @@ class DevisController extends Controller
 
         $request->validate([
             'client_id'             => 'required|exists:clients,id',
+            'email' => 'required|email|exists:clients,email',
             'date_emission'         => 'required|date',
             'date_validite'         => 'nullable|date',
             'statut'                => 'nullable|in:brouillon,envoye,accepte,refuse',
@@ -119,6 +123,7 @@ class DevisController extends Controller
         // Update devis fields
         $devis->update([
             'client_id'     => $request->client_id,
+            'email'         => $request->email,
             'date_emission' => $request->date_emission,
             'date_validite' => $request->date_validite,
             'statut'        => $request->statut ?? $devis->statut,
@@ -183,6 +188,47 @@ class DevisController extends Controller
         return response($pdf->output(), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="devis-' . ($devis->numero ?? $devis->id) . '.pdf"',
+        ]);
+    }
+
+    public function sendPdfByEmail(Request $request, $id)
+    {
+        $devis = Devis::with(['client', 'lignes.produit'])
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'email' => 'nullable|email',
+        ]);
+
+        $recipient = $validated['email'] ?? $devis->email ?? $devis->client?->email;
+
+        if (! $recipient) {
+            return response()->json([
+                'message' => 'Aucun email client disponible pour envoyer ce devis.',
+            ], 422);
+        }
+
+        $pdf = app('dompdf.wrapper');
+        $pdf->loadView('pdf.invoice', compact('devis'));
+        $pdf->setPaper('a4', 'portrait');
+        $pdf->setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true]);
+
+        Mail::send([], [], function ($message) use ($recipient, $devis, $pdf) {
+            $message
+                ->to($recipient)
+                ->subject('Devis ' . ($devis->numero ?? ('#' . $devis->id)))
+                ->text('Veuillez trouver votre devis en pièce jointe.')
+                ->attachData(
+                    $pdf->output(),
+                    'devis-' . ($devis->numero ?? $devis->id) . '.pdf',
+                    ['mime' => 'application/pdf']
+                );
+        });
+
+        return response()->json([
+            'message' => 'Le devis a été envoyé par email avec succès.',
+            'email' => $recipient,
         ]);
     }
 }

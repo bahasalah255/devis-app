@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 #[Fillable([
      'numero',
         'client_id',
+        'email',
         'user_id',
         'statut',
         'date_emission',

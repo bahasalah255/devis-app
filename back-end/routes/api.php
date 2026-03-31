@@ -22,6 +22,7 @@ Route::middleware('auth:sanctum')->group(function () {
    Route::get('/index_archive', [DevisController::class, 'index_archive']);
 	Route::patch('devis/{id}/statut', [DevisController::class, 'updateStatut']);
 	Route::get('devis/{id}/pdf', [DevisController::class, 'generatePdf']);
+	Route::post('devis/{id}/send-email', [DevisController::class, 'sendPdfByEmail']);
 	
     Route::patch('Archive/{id}' , [DevisController::class, 'Archive']);
 	Route::patch('Unarchive/{id}' , [DevisController::class, 'Unarchive']);

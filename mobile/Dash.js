@@ -96,7 +96,51 @@ export default function Dash({ navigation }) {
 		};
 	};
 
-	const downloadInvoice = async (devis_id) => {
+	const downloadInvoice = async (devis_id, email) => {
+		const confirmed = await new Promise((resolve) => {
+			Alert.alert(
+				'Envoyer le devis',
+				email ? `Envoyer le devis par email à ${email} ?` : 'Envoyer ce devis par email au client ?',
+				[
+					{ text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+					{ text: 'Envoyer', onPress: () => resolve(true) },
+				]
+			);
+		});
+
+		if (!confirmed) return;
+
+		try {
+			const token = await AsyncStorage.getItem('token');
+			if (!token) {
+				navigation.replace('Login');
+				return;
+			}
+
+			const payload = email ? { email } : {};
+			const response = await axios.post(
+				`${API_BASE_URL}/devis/${devis_id}/send-email`,
+				payload,
+				{ headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }
+			);
+
+			const sentTo = response?.data?.email || email;
+			Alert.alert('Succès', sentTo ? `Devis envoyé à ${sentTo}.` : 'Devis envoyé par email.');
+		} catch (error) {
+			if (error?.response?.status === 401) {
+				navigation.replace('Login');
+				return;
+			}
+
+			const details =
+				error?.response?.data?.message ||
+				error?.message ||
+				'Impossible d’envoyer le devis par email.';
+
+			Alert.alert('Erreur envoi email', details);
+		}
+	};
+		/*
 		try {
 			const headers = await getPdfRequestHeaders();
 			const localUri = FileSystem.documentDirectory + `devis-${devis_id}.pdf`;
@@ -142,7 +186,8 @@ export default function Dash({ navigation }) {
 				`Impossible de télécharger le PDF.\nURL: ${API_BASE_URL}\nDétail: ${details}`
 			);
 		}
-	};
+		*/
+	
 	const sendPdfWhatsApp = async (id) => {
 		 try {
 			const headers = await getPdfRequestHeaders();
@@ -257,9 +302,9 @@ export default function Dash({ navigation }) {
 						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => handleArchive(item.id)}>
 							<MaterialIcons name="archive" size={20} color="white" />
 						</TouchableOpacity>
-						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => downloadInvoice(item.id)}>
-							<MaterialIcons name="file-download" size={20} color="white" />
-						</TouchableOpacity>
+						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => downloadInvoice(item.id, item.email)}>
+    <MaterialIcons name="email" size={20} color="white" />
+</TouchableOpacity>
 						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => sendPdfWhatsApp(item.id)}>
 							<FontAwesome name="whatsapp" size={20} color="white" />
 						</TouchableOpacity>
