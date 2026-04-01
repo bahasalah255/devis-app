@@ -12,6 +12,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call(AdminUserSeeder::class);
+
         // ── Known user (use this to login) ────────────────────────
         User::create([
             'name'     => 'Moaad',
