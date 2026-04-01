@@ -11,10 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('devis', function (Blueprint $table) {
-            $table->dateTime('restored_at')->nullable()->after('archive');
-            $table->dateTime('archived_at')->nullable()->after('restored_at');
-        });
+        if (! Schema::hasColumn('devis', 'restored_at')) {
+            Schema::table('devis', function (Blueprint $table) {
+                $table->dateTime('restored_at')->nullable()->after('archive');
+            });
+        }
+
+        if (! Schema::hasColumn('devis', 'archived_at')) {
+            Schema::table('devis', function (Blueprint $table) {
+                $table->dateTime('archived_at')->nullable()->after('restored_at');
+            });
+        }
     }
 
     /**
@@ -22,8 +29,15 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('devis', function (Blueprint $table) {
-            $table->dropColumn(['restored_at', 'archived_at']);
-        });
+        if (Schema::hasColumn('devis', 'restored_at') || Schema::hasColumn('devis', 'archived_at')) {
+            Schema::table('devis', function (Blueprint $table) {
+                if (Schema::hasColumn('devis', 'archived_at')) {
+                    $table->dropColumn('archived_at');
+                }
+                if (Schema::hasColumn('devis', 'restored_at')) {
+                    $table->dropColumn('restored_at');
+                }
+            });
+        }
     }
 };

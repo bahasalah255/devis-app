@@ -5,6 +5,7 @@ WORKDIR /var/www/html
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
+    libpq-dev \
     libzip-dev \
     libpng-dev \
     libjpeg62-turbo-dev \
@@ -13,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libicu-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) pdo_mysql zip gd intl bcmath \
+    && docker-php-ext-install -j$(nproc) pdo_mysql pdo_pgsql zip gd intl bcmath \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
