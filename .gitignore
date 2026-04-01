@@ -5,6 +5,7 @@ backend/.gitignore :
 .env
 *.log
 config.js
+!mobile/config.js
 
 mobile/.gitignore :
 
