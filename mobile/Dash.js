@@ -27,6 +27,7 @@ const statusMeta = {
 	envoye: { label: 'Envoyé', dot: '🟣' },
 	accepte: { label: 'Accepté', dot: '🟢' },
 	refuse: { label: 'Refusé', dot: '🔴' },
+	
 };
 
 export default function Dash({ navigation }) {
@@ -126,6 +127,24 @@ export default function Dash({ navigation }) {
 
 			const sentTo = response?.data?.email || email;
 			Alert.alert('Succès', sentTo ? `Devis envoyé à ${sentTo}.` : 'Devis envoyé par email.');
+			if(sentTo){
+				await axios.patch(
+				`${API_BASE_URL}/devis/${devis_id}/statut`,
+				
+				{
+					statut : 'envoye'
+					},
+				
+				{ 
+					headers: { Authorization: `Bearer ${token}`, 
+					'Content-Type': 'application/json' } 
+				}
+			);
+			const statut = response?.data ;
+			if(statut){
+				load()
+			}
+			}
 		} catch (error) {
 			if (error?.response?.status === 401) {
 				navigation.replace('Login');
@@ -221,7 +240,28 @@ export default function Dash({ navigation }) {
             dialogTitle: `Devis Equipement Chefchouani ${id}`,
             UTI: 'com.adobe.pdf', // iOS only
         });
-
+		if(isAvailable){
+			try {
+			const token = await AsyncStorage.getItem('token');
+				await axios.patch(
+				`${API_BASE_URL}/devis/${id}/statut`,
+				
+				{
+					statut : 'envoye'
+					},
+				
+				{ 
+					headers: { Authorization: `Bearer ${token}`, 
+					'Content-Type': 'application/json' } 
+				}
+			);
+			load()
+			
+			}
+		 catch {
+				Alert.alert('Erreur', 'status no changer.');
+		}
+}
     } catch (error) {
 		if (error?.response?.status === 401) {
 			navigation.replace('Login');
@@ -313,7 +353,7 @@ export default function Dash({ navigation }) {
 
 				<View style={s.rowBetween}>
 					<Text style={s.amount}>{Number(item.total_ttc || 0).toFixed(2)} MAD</Text>
-					<Text style={s.status}>{`${status.dot} ${status.label}`}</Text>
+					<Text style={s.status}>{`${status.label}`}</Text>
 				</View>
 			</TouchableOpacity>
 		);
