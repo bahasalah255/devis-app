@@ -82,6 +82,7 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 	const [rawText, setRawText] = useState('');
 	const [pickedFile, setPickedFile] = useState(null);
 	const [loading, setLoading] = useState(false);
+	const [inserting, setInserting] = useState(false);
 	const [error, setError] = useState(null);
 	const [lines, setLines] = useState([]);
 
@@ -273,14 +274,83 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 		setLines((prev) => prev.filter((_, i) => i !== index));
 	}, []);
 
-	const handleInsert = useCallback(() => {
+	const normalizeLabel = useCallback((value) => String(value || '').trim().toLowerCase(), []);
+
+	const upsertProductsFromLines = useCallback(async (finalLines) => {
+		const token = await AsyncStorage.getItem('token');
+		if (!token) throw new Error('NO_TOKEN');
+
+		const headers = { Authorization: `Bearer ${token}` };
+		const existingResponse = await axios.get(`${API_BASE_URL}/produits`, { headers });
+		const existingProducts = Array.isArray(existingResponse?.data) ? existingResponse.data : [];
+
+		const productsByLabel = new Map();
+		existingProducts.forEach((product) => {
+			const key = normalizeLabel(product?.libelle);
+			if (key) productsByLabel.set(key, product);
+		});
+
+		for (const line of finalLines) {
+			const libelle = String(line.designation || '').trim();
+			if (!libelle) continue;
+
+			const key = normalizeLabel(libelle);
+			if (productsByLabel.has(key)) continue;
+
+			const payload = {
+				libelle,
+				description: line?.remarque ? String(line.remarque) : null,
+				prix_unitaire: Number(toNumber(line.prix_unitaire_ht, 0).toFixed(2)),
+				unite: 'unite',
+			};
+
+			const createdResponse = await axios.post(`${API_BASE_URL}/produits`, payload, { headers });
+			const createdProduct = createdResponse?.data;
+			if (createdProduct?.id) {
+				productsByLabel.set(key, createdProduct);
+			}
+		}
+
+		return finalLines.map((line) => {
+			const key = normalizeLabel(line.designation);
+			const matched = productsByLabel.get(key);
+			return {
+				...line,
+				produit_id: matched?.id ? String(matched.id) : '',
+			};
+		});
+	}, [normalizeLabel]);
+
+	const handleInsert = useCallback(async () => {
 		const finalLines = lines.map((line) => recalcLine({
 			...line,
 			designation: String(line.designation || '').trim(),
 		})).filter((line) => line.designation.length > 0);
 
-		onInsert(finalLines);
-	}, [lines, onInsert]);
+		if (finalLines.length === 0) {
+			setError('Aucune ligne valide à insérer.');
+			return;
+		}
+
+		setInserting(true);
+		setError(null);
+		try {
+			const linesWithProducts = await upsertProductsFromLines(finalLines);
+			onInsert(linesWithProducts);
+		} catch (e) {
+			if (e?.message === 'NO_TOKEN' || e?.response?.status === 401) {
+				Alert.alert('Session expirée', 'Reconnectez-vous puis réessayez.');
+				return;
+			}
+			const message =
+				e?.response?.data?.message ||
+				e?.message ||
+				'Impossible d’insérer les produits dans le catalogue.';
+			Alert.alert('Erreur produit', message);
+		} finally {
+			setInserting(false);
+		}
+	}, [lines, onInsert, upsertProductsFromLines]);
 
 	const renderDeleteAction = useCallback((index) => (
 		<TouchableOpacity style={s.deleteAction} onPress={() => removeLine(index)}>
@@ -424,8 +494,8 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 						<TouchableOpacity style={s.ghostBtn} onPress={onClose}>
 							<Text style={s.ghostBtnTxt}>Annuler</Text>
 						</TouchableOpacity>
-						<TouchableOpacity style={[s.mainBtn, lines.length === 0 && s.btnDisabled]} onPress={handleInsert} disabled={lines.length === 0}>
-							<Text style={s.mainBtnTxt}>Insérer dans le devis</Text>
+						<TouchableOpacity style={[s.mainBtn, (lines.length === 0 || inserting) && s.btnDisabled]} onPress={handleInsert} disabled={lines.length === 0 || inserting}>
+							{inserting ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Insérer dans le devis</Text>}
 						</TouchableOpacity>
 					</View>
 				</View>

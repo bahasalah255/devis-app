@@ -290,7 +290,7 @@ html, body {
                         @foreach($lignesPage as $ligne)
                         <tr>
                                 <td class="col-qte">{{ $ligne->quantite }}</td>
-                                <td class="col-des">{{ $ligne->description }}</td>
+                                <td class="col-des">{{ $ligne->produit?->libelle ?: $ligne->description }}</td>
                                 <td class="col-pu">{{ number_format($ligne->prix_unitaire, 2, ',', ' ') }}</td>
                                 <td class="col-mt">{{ number_format($ligne->quantite * $ligne->prix_unitaire, 2, ',', ' ') }}</td>
                         </tr>

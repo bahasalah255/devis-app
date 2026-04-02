@@ -91,6 +91,17 @@ function Parameters({ navigation }) {
 		navigation.navigate(page);
 	};
 
+	const handleDeviceDisconnect = () => {
+		Alert.alert('Déconnecter cet appareil', 'Couper la session enregistrée sur cet appareil ?', [
+			{ text: 'Annuler', style: 'cancel' },
+			{
+				text: 'Déconnecter',
+				style: 'destructive',
+				onPress: handleLogout,
+			},
+		]);
+	};
+
 	return (
 		<SafeAreaView style={s.safe} edges={['top', 'right', 'bottom', 'left']}>
 			<View style={[s.header, { paddingTop: Math.max(insets.top, 8) }]}>
@@ -121,6 +132,19 @@ function Parameters({ navigation }) {
 						<Text style={s.cardTitle}>API</Text>
 						<Text style={s.label}>Base URL</Text>
 						<Text style={s.value}>{API_BASE_URL}</Text>
+					</View>
+
+					<View style={s.card}>
+						<Text style={s.cardTitle}>Session appareil</Text>
+						<Text style={s.value}>Connexion conservée sur cet appareil après la 1ère authentification.</Text>
+						<TouchableOpacity
+							activeOpacity={0.9}
+							style={[s.dangerBtn, loggingOut && { opacity: 0.7 }]}
+							onPress={handleDeviceDisconnect}
+							disabled={loggingOut}
+						>
+							{loggingOut ? <ActivityIndicator color={C.white} /> : <Text style={s.dangerBtnTxt}>Déconnecter cet appareil</Text>}
+						</TouchableOpacity>
 					</View>
 
 					<TouchableOpacity activeOpacity={0.9} style={s.primaryBtn} onPress={loadProfile}>
