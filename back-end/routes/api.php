@@ -16,6 +16,8 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::get('/me', [AuthController::class, 'me']);
 	Route::post('/parse-devis', [TextExtractionController::class, 'extractDevisLignes']);
 	Route::post('/devis/extract-lignes', [TextExtractionController::class, 'extractDevisLignes']);
+	Route::apiResource('clients', ClientController::class);
+	Route::apiResource('produits', ProduitController::class);
 
 	// Devis index_archive
 	Route::apiResource('devis', DevisController::class);
@@ -34,12 +36,5 @@ Route::middleware('auth:sanctum')->group(function () {
 	
 
  });
- // Clients
-    Route::apiResource('clients', ClientController::class);
-	Route::post('clients'  ,[ClientController::class, 'store']);
-	
-
-    // Produits
-    Route::apiResource('produits', ProduitController::class);
    
 ?>

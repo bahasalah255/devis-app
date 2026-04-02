@@ -12,8 +12,10 @@ import {
 	FlatList,
 	SafeAreaView,
 	KeyboardAvoidingView,
+	Keyboard,
 	Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
@@ -46,6 +48,7 @@ const calcLigne = (line) => {
 };
 
 export default function Update({ navigation, route }) {
+	const insets = useSafeAreaInsets();
 	const { devis: initial } = route.params;
 
 	const [clientId, setClientId] = useState(String(initial.client_id));
@@ -85,6 +88,35 @@ export default function Update({ navigation, route }) {
 	const productListRef = useRef(null);
 
 	const client = clients.find((c) => String(c.id) === String(clientId));
+
+	useEffect(() => {
+		if (!showClientForm) return;
+		setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 120);
+		setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 300);
+	}, [showClientForm]);
+
+	useEffect(() => {
+		if (!showProductForm) return;
+		setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+		setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 300);
+	}, [showProductForm]);
+
+	useEffect(() => {
+		if (!showClients && !showProduits) return;
+		const eventName = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const sub = Keyboard.addListener(eventName, () => {
+			if (showClientForm && showClients) {
+				setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 120);
+				setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 280);
+			}
+			if (showProductForm && showProduits) {
+				setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+				setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 280);
+			}
+		});
+
+		return () => sub.remove();
+	}, [showClients, showProduits, showClientForm, showProductForm]);
 
 	useEffect(() => {
 		(async () => {
@@ -376,10 +408,10 @@ export default function Update({ navigation, route }) {
 				<View style={s.modalOverlay}>
 					<KeyboardAvoidingView
 						style={s.modalKeyboard}
-						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+						behavior="padding"
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 24}
 					>
-						<View style={s.modalSheet}>
+						<View style={[s.modalSheet, { paddingBottom: 14 + Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 0) }]}>
 						<View style={s.modalHeader}>
 							<Text style={s.modalTitle}>Choisir un client</Text>
 							<TouchableOpacity onPress={() => setShowClients(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
@@ -390,8 +422,9 @@ export default function Update({ navigation, route }) {
 							data={filteredClients}
 							keyExtractor={(item) => String(item.id)}
 							keyboardShouldPersistTaps="always"
+							keyboardDismissMode="none"
 							nestedScrollEnabled
-							contentContainerStyle={s.modalListContent}
+							contentContainerStyle={[s.modalListContent, { paddingBottom: 10 + Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 0) }]}
 							renderItem={({ item }) => (
 								<TouchableOpacity style={s.itemRow} onPress={() => { setClientId(String(item.id)); setShowClients(false); }}>
 									<Text style={s.itemMain}>{item.nom}</Text>
@@ -405,9 +438,18 @@ export default function Update({ navigation, route }) {
 
 									{showClientForm && (
 										<View style={s.inlineForm}>
-											<TextInput style={s.input} placeholder="Nom du client" placeholderTextColor={C.sub} value={clientNom} onChangeText={setClientNom} onFocus={() => clientListRef.current?.scrollToEnd({ animated: true })} />
-											<TextInput style={s.input} placeholder="Email (optionnel)" placeholderTextColor={C.sub} value={clientEmail} onChangeText={setClientEmail} autoCapitalize="none" keyboardType="email-address" onFocus={() => clientListRef.current?.scrollToEnd({ animated: true })} />
-											<TextInput style={s.input} placeholder="Téléphone (optionnel)" placeholderTextColor={C.sub} value={clientTel} onChangeText={setClientTel} keyboardType="phone-pad" onFocus={() => clientListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Nom du client" placeholderTextColor={C.sub} value={clientNom} onChangeText={setClientNom} onFocus={() => {
+												setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
+											<TextInput style={s.input} placeholder="Email (optionnel)" placeholderTextColor={C.sub} value={clientEmail} onChangeText={setClientEmail} autoCapitalize="none" keyboardType="email-address" onFocus={() => {
+												setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
+											<TextInput style={s.input} placeholder="Téléphone (optionnel)" placeholderTextColor={C.sub} value={clientTel} onChangeText={setClientTel} keyboardType="phone-pad" onFocus={() => {
+												setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => clientListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
 											<TouchableOpacity style={[s.mainBtn, { marginTop: 10 }, savingClient && { opacity: 0.7 }]} onPress={saveClientForm} disabled={savingClient}>
 												{savingClient ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Enregistrer le client</Text>}
 											</TouchableOpacity>
@@ -425,10 +467,10 @@ export default function Update({ navigation, route }) {
 				<View style={s.modalOverlay}>
 					<KeyboardAvoidingView
 						style={s.modalKeyboard}
-						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+						behavior="padding"
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 24}
 					>
-						<View style={s.modalSheet}>
+						<View style={[s.modalSheet, { paddingBottom: 14 + Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 0) }]}>
 						<View style={s.modalHeader}>
 							<Text style={s.modalTitle}>Choisir un produit</Text>
 							<TouchableOpacity onPress={() => setShowProduits(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
@@ -439,8 +481,9 @@ export default function Update({ navigation, route }) {
 							data={filteredProduits}
 							keyExtractor={(item) => String(item.id)}
 							keyboardShouldPersistTaps="always"
+							keyboardDismissMode="none"
 							nestedScrollEnabled
-							contentContainerStyle={s.modalListContent}
+							contentContainerStyle={[s.modalListContent, { paddingBottom: 10 + Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 0) }]}
 							renderItem={({ item }) => (
 								<TouchableOpacity
 									style={s.itemRow}
@@ -463,9 +506,18 @@ export default function Update({ navigation, route }) {
 
 									{showProductForm && (
 										<View style={s.inlineForm}>
-											<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
-											<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
-											<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} onFocus={() => {
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
+											<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" onFocus={() => {
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
+											<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} onFocus={() => {
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
 											<Text style={s.unitLabel}>Unité</Text>
 											<View style={s.unitRow}>
 												{PRODUCT_UNITS.map((unit) => (
@@ -614,7 +666,7 @@ const s = StyleSheet.create({
 		borderTopLeftRadius: 18,
 		borderTopRightRadius: 18,
 		padding: 14,
-		maxHeight: '72%',
+		maxHeight: Platform.OS === 'android' ? '88%' : '72%',
 	},
 	modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
 	modalTitle: { color: C.text, fontSize: 17, fontWeight: '800' },
