@@ -13,8 +13,10 @@ import {
 	FlatList,
 	SafeAreaView,
 	KeyboardAvoidingView,
+	Keyboard,
 	Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
@@ -66,6 +68,7 @@ const fromSmartLine = (line) => ({
 const PRODUCT_UNITS = ['unite', 'kg', 'litre', 'metre'];
 
 export default function Create({ navigation, route }) {
+	const insets = useSafeAreaInsets();
 	const [step, setStep] = useState(1);
 	const [clientId, setClientId] = useState('');
 	const [clients, setClients] = useState([]);
@@ -137,10 +140,31 @@ export default function Create({ navigation, route }) {
 
 	useEffect(() => {
 		if (!showProductForm) return;
-		setTimeout(() => {
-			productListRef.current?.scrollToEnd({ animated: true });
-		}, 140);
+		const autoScroll = () => {
+			setTimeout(() => {
+				productListRef.current?.scrollToEnd({ animated: true });
+			}, 120);
+			setTimeout(() => {
+				productListRef.current?.scrollToEnd({ animated: true });
+			}, 300);
+		};
+		autoScroll();
 	}, [showProductForm]);
+
+	useEffect(() => {
+		if (!showProductModal || !showProductForm) return;
+		const eventName = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const sub = Keyboard.addListener(eventName, () => {
+			setTimeout(() => {
+				productListRef.current?.scrollToEnd({ animated: true });
+			}, 120);
+			setTimeout(() => {
+				productListRef.current?.scrollToEnd({ animated: true });
+			}, 280);
+		});
+
+		return () => sub.remove();
+	}, [showProductModal, showProductForm]);
 
 	const setLigne = (index, key, value) => {
 		setLignes((prev) => prev.map((line, i) => (i === index ? { ...line, [key]: value } : line)));
@@ -463,7 +487,7 @@ export default function Create({ navigation, route }) {
 				)}
 			</ScrollView>
 
-			<View style={s.footerActions}>
+			<View style={[s.footerActions, { paddingBottom: 14 + Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0) }]}>
 				{step > 1 && (
 					<TouchableOpacity style={s.ghostBtn} onPress={() => setStep((s) => Math.max(1, s - 1))}>
 						<Text style={s.ghostBtnTxt}>Précédent</Text>
@@ -485,10 +509,10 @@ export default function Create({ navigation, route }) {
 				<View style={s.modalOverlay}>
 					<KeyboardAvoidingView
 						style={s.modalKeyboard}
-						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+						behavior="padding"
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 24}
 					>
-						<View style={s.modalSheet}>
+						<View style={[s.modalSheet, { paddingBottom: 14 + Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 0) }]}>
 						<View style={s.modalHeader}>
 							<Text style={s.modalTitle}>Choisir un produit</Text>
 							<TouchableOpacity onPress={() => setShowProductModal(false)}><Text style={s.closeTxt}>Fermer</Text></TouchableOpacity>
@@ -505,8 +529,9 @@ export default function Create({ navigation, route }) {
 							data={filteredProduits}
 							keyExtractor={(item) => String(item.id)}
 							keyboardShouldPersistTaps="always"
+							keyboardDismissMode="none"
 							nestedScrollEnabled
-							contentContainerStyle={s.modalListContent}
+							contentContainerStyle={[s.modalListContent, { paddingBottom: 10 + Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 0) }]}
 							renderItem={({ item }) => (
 								<TouchableOpacity
 									style={s.itemRow}
@@ -529,9 +554,18 @@ export default function Create({ navigation, route }) {
 
 									{showProductForm && (
 										<View style={s.inlineForm}>
-											<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
-											<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
-											<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} onFocus={() => productListRef.current?.scrollToEnd({ animated: true })} />
+											<TextInput style={s.input} placeholder="Nom du produit" placeholderTextColor={C.sub} value={productLibelle} onChangeText={setProductLibelle} onFocus={() => {
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
+											<TextInput style={s.input} placeholder="Prix unitaire" placeholderTextColor={C.sub} value={productPrix} onChangeText={(v) => setProductPrix(v.replace(',', '.'))} keyboardType="decimal-pad" onFocus={() => {
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
+											<TextInput style={s.input} placeholder="Description (optionnel)" placeholderTextColor={C.sub} value={productDescription} onChangeText={setProductDescription} onFocus={() => {
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 120);
+												setTimeout(() => productListRef.current?.scrollToEnd({ animated: true }), 280);
+											}} />
 											<Text style={s.unitLabel}>Unité</Text>
 											<View style={s.unitRow}>
 												{PRODUCT_UNITS.map((unit) => (
@@ -773,7 +807,7 @@ const s = StyleSheet.create({
 		borderTopLeftRadius: 18,
 		borderTopRightRadius: 18,
 		padding: 14,
-		maxHeight: '72%',
+		maxHeight: Platform.OS === 'android' ? '88%' : '72%',
 	},
 	modalListContent: { paddingBottom: 6 },
 	modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
