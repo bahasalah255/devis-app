@@ -57,9 +57,9 @@ const makeLine = () => ({
 });
 
 const fromSmartLine = (line) => ({
-	produit_id: '',
+	produit_id: line?.produit_id ? String(line.produit_id) : '',
 	nom: String(line?.designation || '').trim(),
-	description: String(line?.designation || '').trim(),
+	description: String(line?.remarque || line?.designation || '').trim(),
 	quantite: String(Number(line?.quantite || 1)),
 	prix_unitaire: String(Number(line?.prix_unitaire_ht || 0)),
 	remise: '0',

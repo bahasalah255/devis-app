@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
 	View,
 	Text,
@@ -36,6 +36,38 @@ export default function Login({ navigation }) {
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [loading, setLoading] = useState(false);
+	const [checkingSession, setCheckingSession] = useState(true);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		const autoLogin = async () => {
+			try {
+				const token = await AsyncStorage.getItem('token');
+				if (!token) return;
+
+				const response = await axios.get(`${API_BASE_URL}/me`, {
+					headers: { Authorization: `Bearer ${token}` },
+				});
+
+				const user = response?.data;
+				if (user) {
+					await AsyncStorage.setItem('user', JSON.stringify(user));
+					if (isMounted) navigation.replace('Dash');
+				}
+			} catch {
+				await AsyncStorage.multiRemove(['token', 'user']);
+			} finally {
+				if (isMounted) setCheckingSession(false);
+			}
+		};
+
+		autoLogin();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [navigation]);
 
 	const handleLogin = async () => {
 		if (!email.trim() || !password.trim()) {
@@ -72,6 +104,12 @@ export default function Login({ navigation }) {
 	return (
 		<SafeAreaView style={s.safe}>
 			<KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+				{checkingSession ? (
+					<View style={s.sessionLoader}>
+						<ActivityIndicator color={C.accent} />
+						<Text style={s.sessionLoaderTxt}>Vérification de la session appareil...</Text>
+					</View>
+				) : (
 				<View style={s.container}>
 					<Text style={s.logo}>🧾 Devis App</Text>
 					<Text style={s.subtitle}>Connectez-vous pour gérer vos devis rapidement.</Text>
@@ -109,6 +147,7 @@ export default function Login({ navigation }) {
 						{loading ? <ActivityIndicator color="#fff" /> : <Text style={s.mainBtnTxt}>Se connecter</Text>}
 					</TouchableOpacity>
 				</View>
+				)}
 			</KeyboardAvoidingView>
 		</SafeAreaView>
 	);
@@ -149,4 +188,11 @@ const s = StyleSheet.create({
 		...SHADOW,
 	},
 	mainBtnTxt: { color: C.white, fontSize: 16, fontWeight: '800' },
+	sessionLoader: {
+		flex: 1,
+		justifyContent: 'center',
+		alignItems: 'center',
+		gap: 10,
+	},
+	sessionLoaderTxt: { color: C.sub, fontSize: 14, fontWeight: '600' },
 });
