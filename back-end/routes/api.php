@@ -6,6 +6,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ProduitController;
 use App\Http\Controllers\DevisController;
 use App\Http\Controllers\DevisLigneController;
+use App\Http\Controllers\PricingSuggestionController;
 use App\Http\Controllers\TextExtractionController;
 //Routes
 Route::post('/login',    [AuthController::class, 'login']);
@@ -16,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
 	Route::get('/me', [AuthController::class, 'me']);
 	Route::post('/parse-devis', [TextExtractionController::class, 'extractDevisLignes']);
 	Route::post('/devis/extract-lignes', [TextExtractionController::class, 'extractDevisLignes']);
+	Route::get('/pricing/suggest', [PricingSuggestionController::class, 'suggest']);
 	Route::apiResource('clients', ClientController::class);
 	Route::apiResource('produits', ProduitController::class);
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Produit;
 use App\Services\DevisAiParser;
 use Illuminate\Http\Request;
 use Smalot\PdfParser\Parser;
@@ -42,7 +43,7 @@ class TextExtractionController extends Controller
                     $regexLines = $this->extractRegexLinesFromText($ocrText, true);
 
                     if (!empty($regexLines)) {
-                        return response()->json($regexLines);
+                        return response()->json($this->enrichWithExistingProducts($regexLines));
                     }
                 } catch (Throwable $e) {
                     return response()->json([
@@ -77,7 +78,7 @@ class TextExtractionController extends Controller
                     $regexLines = $this->extractRegexLinesFromText($ocrText, true);
 
                     if (!empty($regexLines)) {
-                        return response()->json($regexLines);
+                        return response()->json($this->enrichWithExistingProducts($regexLines));
                     }
                 } catch (Throwable $ocrError) {
                     $combinedDetail = $attemptDetail !== ''
@@ -107,7 +108,7 @@ class TextExtractionController extends Controller
                     $regexLines = $this->extractRegexLinesFromText($ocrText, true);
 
                     if (!empty($regexLines)) {
-                        return response()->json($regexLines);
+                        return response()->json($this->enrichWithExistingProducts($regexLines));
                     }
                 } catch (Throwable $ocrError) {
                     $combinedDetail = $attemptDetail !== ''
@@ -126,7 +127,7 @@ class TextExtractionController extends Controller
                 ], 422);
             }
 
-            return response()->json($normalized);
+            return response()->json($this->enrichWithExistingProducts($normalized));
         }
 
         $fromPdf = false;
@@ -149,10 +150,95 @@ class TextExtractionController extends Controller
 
         $aiLines = $this->tryAiExtractionWithFallback($text);
         if (!empty($aiLines)) {
-            return response()->json($aiLines);
+            return response()->json($this->enrichWithExistingProducts($aiLines));
         }
 
-        return response()->json($this->extractRegexLinesFromText($text, $fromPdf));
+        return response()->json($this->enrichWithExistingProducts($this->extractRegexLinesFromText($text, $fromPdf)));
+    }
+
+    private function enrichWithExistingProducts(array $lines): array
+    {
+        if (empty($lines)) {
+            return $lines;
+        }
+
+        $products = Produit::query()->get(['id', 'libelle', 'prix_unitaire']);
+        if ($products->isEmpty()) {
+            return $lines;
+        }
+
+        $normalizedProducts = $products->map(function ($product) {
+            $normalizedLabel = $this->normalizeCatalogLabel((string) $product->libelle);
+            return [
+                'id' => (int) $product->id,
+                'libelle' => (string) $product->libelle,
+                'libelle_lower' => $normalizedLabel,
+                'prix_unitaire' => (float) $product->prix_unitaire,
+            ];
+        })->filter(fn ($product) => $product['libelle_lower'] !== '')->values();
+
+        foreach ($lines as &$line) {
+            if (!is_array($line)) {
+                continue;
+            }
+
+            $designation = trim((string) ($line['designation'] ?? ''));
+            if ($designation === '') {
+                continue;
+            }
+
+            $designationLower = $this->normalizeCatalogLabel($designation);
+            if ($designationLower === '') {
+                continue;
+            }
+
+            $match = $normalizedProducts->first(fn ($product) => $product['libelle_lower'] === $designationLower);
+
+            if (!$match) {
+                $candidates = $normalizedProducts
+                    ->filter(function ($product) use ($designationLower) {
+                        return str_contains($designationLower, $product['libelle_lower'])
+                            || str_contains($product['libelle_lower'], $designationLower);
+                    })
+                    ->sortByDesc(fn ($product) => strlen($product['libelle_lower']))
+                    ->values();
+
+                $match = $candidates->first();
+            }
+
+            if (!$match) {
+                continue;
+            }
+
+            $prix = round((float) $match['prix_unitaire'], 2);
+            $quantite = (float) ($line['quantite'] ?? 1);
+
+            $line['produit_id'] = $match['id'];
+            $line['prix_unitaire_ht'] = $prix;
+            $line['total_ht'] = round($quantite * $prix, 2);
+            $line['source'] = ($line['source'] ?? 'ai') . '+catalog';
+        }
+
+        return $lines;
+    }
+
+    private function normalizeCatalogLabel(string $value): string
+    {
+        $label = trim($value);
+        if ($label === '') {
+            return '';
+        }
+
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $label);
+        if (is_string($ascii) && $ascii !== '') {
+            $label = $ascii;
+        }
+
+        $label = mb_strtolower($label);
+        $label = preg_replace('/[^a-z0-9]+/u', ' ', $label) ?? $label;
+        $label = preg_replace('/\s+/u', ' ', $label) ?? $label;
+
+        return trim($label);
     }
 
     private function tryAiExtractionWithFallback(string $text): array

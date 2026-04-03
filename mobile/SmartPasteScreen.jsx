@@ -57,6 +57,7 @@ const sanitizeLine = (line) => {
 	const confiance = Math.max(0, Math.min(1, toNumber(line?.confiance, 0.7)));
 
 	return {
+		produit_id: line?.produit_id ? String(line.produit_id) : '',
 		designation: String(line?.designation || '').trim(),
 		quantite,
 		prix_unitaire_ht: Number(prix.toFixed(2)),
@@ -291,6 +292,8 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 		});
 
 		for (const line of finalLines) {
+			if (line?.produit_id) continue;
+
 			const libelle = String(line.designation || '').trim();
 			if (!libelle) continue;
 
@@ -312,6 +315,13 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 		}
 
 		return finalLines.map((line) => {
+			if (line?.produit_id) {
+				return {
+					...line,
+					produit_id: String(line.produit_id),
+				};
+			}
+
 			const key = normalizeLabel(line.designation);
 			const matched = productsByLabel.get(key);
 			return {

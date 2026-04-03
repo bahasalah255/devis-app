@@ -96,6 +96,7 @@ export default function Create({ navigation, route }) {
 	const [productPrix, setProductPrix] = useState('');
 	const [productDescription, setProductDescription] = useState('');
 	const [productUnite, setProductUnite] = useState('unite');
+	const [priceSuggestions, setPriceSuggestions] = useState({});
 
 	const [loadingRefs, setLoadingRefs] = useState(true);
 	const [saving, setSaving] = useState(false);
@@ -117,6 +118,11 @@ export default function Create({ navigation, route }) {
 		if (!q) return produits;
 		return produits.filter((p) => String(p.libelle || '').toLowerCase().includes(q));
 	}, [productQuery, produits]);
+
+	const suggestionSignature = useMemo(
+		() => lignes.map((line) => `${line.produit_id || ''}|${String(line.nom || '').trim().toLowerCase()}`).join(';'),
+		[lignes]
+	);
 
 	useEffect(() => {
 		(async () => {
@@ -166,8 +172,57 @@ export default function Create({ navigation, route }) {
 		return () => sub.remove();
 	}, [showProductModal, showProductForm]);
 
+	useEffect(() => {
+		let cancelled = false;
+
+		const fetchSuggestions = async () => {
+			try {
+				const token = await AsyncStorage.getItem('token');
+				if (!token) return;
+
+				const headers = { Authorization: `Bearer ${token}` };
+				const nextSuggestions = {};
+
+				for (let index = 0; index < lignes.length; index += 1) {
+					const line = lignes[index];
+					const designation = String(line.nom || '').trim();
+					if (!line.produit_id && !designation) continue;
+
+					const params = {
+						margin_percent: 10,
+						default_price: Number(line.prix_unitaire || 0) || 0,
+					};
+					if (line.produit_id) params.produit_id = Number(line.produit_id);
+					if (designation) params.designation = designation;
+
+					const response = await axios.get(`${API_BASE_URL}/pricing/suggest`, { headers, params });
+					nextSuggestions[index] = response?.data || null;
+				}
+
+				if (!cancelled) {
+					setPriceSuggestions(nextSuggestions);
+				}
+			} catch {
+				if (!cancelled) setPriceSuggestions({});
+			}
+		};
+
+		fetchSuggestions();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [suggestionSignature]);
+
 	const setLigne = (index, key, value) => {
 		setLignes((prev) => prev.map((line, i) => (i === index ? { ...line, [key]: value } : line)));
+	};
+
+	const applySuggestedPrice = (index) => {
+		const suggestion = priceSuggestions[index];
+		const suggestedPrice = Number(suggestion?.suggested_price || 0);
+		if (!suggestedPrice) return;
+		setLigne(index, 'prix_unitaire', String(suggestedPrice));
 	};
 
 	const canGoStep2 = Boolean(clientId);
@@ -425,6 +480,23 @@ export default function Create({ navigation, route }) {
 
 						{lignes.map((line, index) => (
 							<View key={index} style={s.lineCard}>
+								{(() => {
+									const suggestion = priceSuggestions[index];
+									if (!suggestion?.suggested_price) return null;
+									return (
+										<View style={s.suggestWrap}>
+											<Text style={s.suggestTxt}>
+												Suggéré: {Number(suggestion.suggested_price).toFixed(2)} MAD
+												 {' '}· Dernier: {Number(suggestion.last_price || 0).toFixed(2)}
+												 {' '}· Moy: {Number(suggestion.average_price || 0).toFixed(2)}
+											</Text>
+											<TouchableOpacity style={s.suggestBtn} onPress={() => applySuggestedPrice(index)}>
+												<Text style={s.suggestBtnTxt}>Appliquer</Text>
+											</TouchableOpacity>
+										</View>
+									);
+								})()}
+
 								<TouchableOpacity style={s.select} onPress={() => { setActiveLine(index); setShowProductModal(true); }}>
 									<Text style={s.selectLabel}>Produit</Text>
 									<Text style={s.selectValue}>{line.nom || 'Choisir un produit'}</Text>
@@ -754,6 +826,25 @@ const s = StyleSheet.create({
 	},
 	removeBtn: { marginTop: 8, alignItems: 'center' },
 	removeTxt: { color: '#C62828', fontWeight: '700' },
+	suggestWrap: {
+		marginBottom: 8,
+		padding: 8,
+		borderRadius: 10,
+		backgroundColor: '#EEF0FF',
+		borderWidth: 1,
+		borderColor: C.border,
+	},
+	suggestTxt: { color: C.text, fontSize: 12, fontWeight: '600' },
+	suggestBtn: {
+		marginTop: 6,
+		alignSelf: 'flex-start',
+		paddingHorizontal: 10,
+		height: 30,
+		borderRadius: 8,
+		backgroundColor: C.accent,
+		justifyContent: 'center',
+	},
+	suggestBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
 
 	resumeLine: { color: C.sub, fontSize: 14, marginBottom: 6 },
 	resumeStrong: { color: C.text, fontWeight: '700' },
