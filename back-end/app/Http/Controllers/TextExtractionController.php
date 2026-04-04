@@ -648,7 +648,7 @@ class TextExtractionController extends Controller
 
         if ($strict) {
             $hasNumber = (bool) preg_match('/\d/u', $normalized);
-            $hasProductIndicator = (bool) preg_match('/\b(qt[eé]|quantit[eé]|qty|x|pcs|unit[ée]s?|pu|prix|dh|dhs)\b/iu', $normalized);
+            $hasProductIndicator = (bool) preg_match('/\b(qt[eé]|quantit[eé]|quantity|qty|x|pcs|unit[ée]s?|pu|prix|dh|dhs)\b/iu', $normalized);
             if (!$hasNumber && !$hasProductIndicator) {
                 return null;
             }
@@ -660,7 +660,7 @@ class TextExtractionController extends Controller
         $priceExplicit = false;
 
         $qtyPatterns = [
-            '/\b(?:qt[eé]|quantit[eé]|qty|unit[ée]s?|pcs|pi[eè]ces?)\s*[:=]?\s*(\d+(?:\.\d+)?)/iu',
+            '/\b(?:qt[eé]|quantit[eé]|quantity|qty|unit[ée]s?|pcs|pi[eè]ces?)\s*[:=]?\s*(\d+(?:\.\d+)?)/iu',
             '/\bx\s*(\d+(?:\.\d+)?)/iu',
             '/(\d+(?:\.\d+)?)\s*x\b/iu',
             '/\b(\d+(?:\.\d+)?)\s*(?:unit[ée]s?|pcs|u)\b/iu',
@@ -741,7 +741,10 @@ class TextExtractionController extends Controller
         }
 
         if (!$priceExplicit) {
-            if ($price <= 0) {
+            if ($qtyExplicit && $price <= 0) {
+                $confidence = min($confidence, 0.7);
+                $remarques[] = 'Prix absent — conservé à 0';
+            } elseif ($price <= 0) {
                 $confidence = min($confidence, 0.45);
                 $remarques[] = 'Prix manquant — mis à 0';
             } else {
@@ -750,7 +753,7 @@ class TextExtractionController extends Controller
             }
         }
 
-        if ($strict && !$priceExplicit && $price <= 0) {
+        if ($strict && !$priceExplicit && !$qtyExplicit && $price <= 0) {
             return null;
         }
 
@@ -785,7 +788,7 @@ class TextExtractionController extends Controller
         $designation = $line;
 
         $patterns = [
-            '/\b(?:qt[eé]|quantit[eé]|qty|unit[ée]s?|pcs|pi[eè]ces?)\s*[:=]?\s*\d+(?:[\.,]\d+)?/iu',
+            '/\b(?:qt[eé]|quantit[eé]|quantity|qty|unit[ée]s?|pcs|pi[eè]ces?)\s*[:=]?\s*\d+(?:[\.,]\d+)?/iu',
             '/\bx\s*\d+(?:[\.,]\d+)?/iu',
             '/\d+(?:[\.,]\d+)?\s*x\b/iu',
             '/\b(?:pu|prix(?:\s*unitaire)?|p\.u\.?)\s*[:=]?\s*\d+(?:[\.,]\d+)?\s*(?:dhs?|dh)?/iu',
@@ -842,7 +845,7 @@ class TextExtractionController extends Controller
         $value = preg_replace('/\s+/', ' ', $value) ?? $value;
 
         $hasNumber = (bool) preg_match('/\d/u', $value);
-        $hasIndicators = (bool) preg_match('/\b(x|qt[eé]|quantit[eé]|qty|unit[ée]s?|pcs|u|pu|prix|dh|dhs)\b/u', $value);
+        $hasIndicators = (bool) preg_match('/\b(x|qt[eé]|quantit[eé]|quantity|qty|unit[ée]s?|pcs|u|pu|prix|dh|dhs)\b/u', $value);
 
         if (!$hasNumber && !$hasIndicators) {
             $looksLikeCategoryLine = (bool) preg_match('/[•·]/u', $value);
@@ -987,7 +990,7 @@ class TextExtractionController extends Controller
         $hasText = (bool) preg_match('/\p{L}{2,}/u', $value);
         $numberHits = preg_match_all('/\d+(?:[\.,]\d+)?/u', $value);
         $hasPriceCue = (bool) preg_match('/\b(dh|dhs|pu|prix|ht|ttc)\b/u', $value);
-        $hasQtyCue = (bool) preg_match('/\b(qt[eé]|qte|quantit[eé]|qty|pcs|x)\b/u', $value);
+        $hasQtyCue = (bool) preg_match('/\b(qt[eé]|qte|quantit[eé]|quantity|qty|pcs|x)\b/u', $value);
 
         if ($hasText && $numberHits >= 2) {
             return true;

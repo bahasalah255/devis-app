@@ -11,6 +11,7 @@ import {
 	TextInput,
 	Modal,
 	KeyboardAvoidingView,
+	ScrollView,
 	Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -240,51 +241,59 @@ function Clients({ navigation }) {
 			<Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
 				<KeyboardAvoidingView
 					style={s.modalWrap}
-					behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'android' ? 20 : 0}
 				>
-					<View style={s.modalCard}>
-						<Text style={s.modalTitle}>{editingId ? 'Modifier client' : 'Nouveau client'}</Text>
-						<TextInput
-							style={s.input}
-							placeholder="Nom *"
-							placeholderTextColor={C.sub}
-							value={nom}
-							onChangeText={setNom}
-						/>
-						<TextInput
-							style={s.input}
-							placeholder="Email"
-							placeholderTextColor={C.sub}
-							value={email}
-							onChangeText={setEmail}
-							autoCapitalize="none"
-							keyboardType="email-address"
-						/>
-						<TextInput
-							style={s.input}
-							placeholder="Téléphone"
-							placeholderTextColor={C.sub}
-							value={telephone}
-							onChangeText={setTelephone}
-							keyboardType="phone-pad"
-						/>
-						<TextInput
-							style={[s.input, { minHeight: 78, textAlignVertical: 'top' }]}
-							placeholder="Adresse"
-							placeholderTextColor={C.sub}
-							value={adresse}
-							onChangeText={setAdresse}
-							multiline
-						/>
-						<View style={s.modalActions}>
-							<TouchableOpacity activeOpacity={0.85} style={s.cancelBtn} onPress={() => setShowForm(false)}>
-								<Text style={s.cancelTxt}>Annuler</Text>
-							</TouchableOpacity>
-							<TouchableOpacity activeOpacity={0.85} style={s.saveBtn} onPress={saveClient}>
-								{saving ? <ActivityIndicator color={C.white} /> : <Text style={s.saveTxt}>Enregistrer</Text>}
-							</TouchableOpacity>
+					<ScrollView
+						style={s.modalScroll}
+						contentContainerStyle={s.modalScrollContent}
+						keyboardShouldPersistTaps="handled"
+						showsVerticalScrollIndicator={false}
+					>
+						<View style={s.modalCard}>
+							<Text style={s.modalTitle}>{editingId ? 'Modifier client' : 'Nouveau client'}</Text>
+							<TextInput
+								style={s.input}
+								placeholder="Nom *"
+								placeholderTextColor={C.sub}
+								value={nom}
+								onChangeText={setNom}
+							/>
+							<TextInput
+								style={s.input}
+								placeholder="Email"
+								placeholderTextColor={C.sub}
+								value={email}
+								onChangeText={setEmail}
+								autoCapitalize="none"
+								keyboardType="email-address"
+							/>
+							<TextInput
+								style={s.input}
+								placeholder="Téléphone"
+								placeholderTextColor={C.sub}
+								value={telephone}
+								onChangeText={setTelephone}
+								keyboardType="phone-pad"
+							/>
+							<TextInput
+								style={[s.input, { minHeight: 78, textAlignVertical: 'top' }]}
+								placeholder="Adresse"
+								placeholderTextColor={C.sub}
+								value={adresse}
+								onChangeText={setAdresse}
+								multiline
+							/>
+							<View style={s.modalActions}>
+								<TouchableOpacity activeOpacity={0.85} style={s.cancelBtn} onPress={() => setShowForm(false)}>
+									<Text style={s.cancelTxt}>Annuler</Text>
+								</TouchableOpacity>
+								<TouchableOpacity activeOpacity={0.85} style={s.saveBtn} onPress={saveClient}>
+									{saving ? <ActivityIndicator color={C.white} /> : <Text style={s.saveTxt}>Enregistrer</Text>}
+								</TouchableOpacity>
+							</View>
 						</View>
-					</View>
+					</ScrollView>
 				</KeyboardAvoidingView>
 			</Modal>
 
@@ -393,6 +402,12 @@ const s = StyleSheet.create({
 	modalWrap: {
 		flex: 1,
 		backgroundColor: 'rgba(0,0,0,0.35)',
+		justifyContent: 'flex-end',
+	},
+	modalScroll: {
+		maxHeight: '90%',
+	},
+	modalScrollContent: {
 		justifyContent: 'flex-end',
 	},
 	modalCard: {
