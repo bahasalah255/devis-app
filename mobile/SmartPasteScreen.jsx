@@ -50,15 +50,98 @@ const toNumber = (value, fallback = 0) => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+const LITER_AMOUNT_REGEX = /(\d+(?:[.,]\d+)?)\s*(l|lt|ltr|litre|litres)\b/i;
+const LITER_UNITS = new Set(['l', 'lt', 'ltr', 'litre', 'litres', 'liter', 'liters']);
+
+const normalizeUnit = (value) => String(value || '').trim().toLowerCase();
+
+const extractLiterAmount = (text) => {
+	const match = String(text || '').match(LITER_AMOUNT_REGEX);
+	if (!match) return null;
+	return toNumber(match[1], 0);
+};
+
+const parseRawQuantity = (value) => {
+	if (value === null || value === undefined) return 1;
+	const raw = String(value).trim();
+	if (!raw) return 1;
+
+	const direct = toNumber(raw, Number.NaN);
+	if (Number.isFinite(direct)) return direct;
+
+	const liters = extractLiterAmount(raw);
+	if (Number.isFinite(liters) && liters > 0) return liters;
+
+	const anyNumber = raw.match(/(\d+(?:[.,]\d+)?)/);
+	if (anyNumber?.[1]) return toNumber(anyNumber[1], 1);
+
+	return 1;
+};
+
+const TRAILING_QUANTITY_REGEX = /^(.*?)\s+(\d+(?:[.,]\d+)?(?:\s*(?:l|lt|ltr|litre|litres))?)\s*$/i;
+
+const extractQuantityFromDesignation = (designation) => {
+	const rawDesignation = String(designation || '').trim();
+	if (!rawDesignation) return null;
+
+	const match = rawDesignation.match(TRAILING_QUANTITY_REGEX);
+	if (!match) return null;
+
+	const normalizedDesignation = String(match[1] || '').trim();
+	const quantityText = String(match[2] || '').trim();
+	if (!normalizedDesignation || !quantityText) return null;
+
+	return {
+		designation: normalizedDesignation,
+		quantityText,
+	};
+};
+
+const extractLineLiters = (line) => {
+	const literFromQuantityField = extractLiterAmount(line?.quantite);
+	const literFromDesignation = extractLiterAmount(line?.designation);
+	const literFromRemarque = extractLiterAmount(line?.remarque);
+	const parsedQuantity = parseRawQuantity(line?.quantite);
+	const unit = normalizeUnit(line?.unite || line?.unit || line?.uom || line?.unite_mesure);
+	const hasLiterUnit = LITER_UNITS.has(unit);
+	const liters = literFromQuantityField ?? literFromDesignation ?? literFromRemarque ?? (hasLiterUnit ? parsedQuantity : null);
+
+	if (!Number.isFinite(liters) || liters <= 0) return null;
+	return liters;
+};
+
+const convertLitersToCans = (liters, canSize) => {
+	if (!Number.isFinite(liters) || liters <= 0) return null;
+	if (!Number.isFinite(canSize) || canSize <= 0) return null;
+	return Math.max(1, Math.ceil(liters / canSize));
+};
+
 const sanitizeLine = (line) => {
-	const quantite = clamp(toNumber(line?.quantite, 1), 0, 10000);
+	const rawDesignation = String(line?.designation || '').trim();
+	const rawQuantityText = String(line?.quantite ?? '').trim();
+	const extractedFromDesignation = extractQuantityFromDesignation(rawDesignation);
+
+	const shouldUseExtractedQuantity = Boolean(
+		extractedFromDesignation && (!rawQuantityText || parseRawQuantity(rawQuantityText) === 1)
+	);
+
+	const normalizedDesignation = shouldUseExtractedQuantity
+		? extractedFromDesignation.designation
+		: rawDesignation;
+
+	const quantitySource = shouldUseExtractedQuantity
+		? extractedFromDesignation.quantityText
+		: line?.quantite;
+
+	const parsedQuantity = parseRawQuantity(quantitySource);
+	const quantite = clamp(parsedQuantity, 0, 10000);
 	const prix = clamp(toNumber(line?.prix_unitaire_ht, 0), 0, 1000000);
 	const total = Number((quantite * prix).toFixed(2));
 	const confiance = Math.max(0, Math.min(1, toNumber(line?.confiance, 0.7)));
 
 	return {
 		produit_id: line?.produit_id ? String(line.produit_id) : '',
-		designation: String(line?.designation || '').trim(),
+		designation: normalizedDesignation,
 		quantite,
 		prix_unitaire_ht: Number(prix.toFixed(2)),
 		total_ht: total,
@@ -112,10 +195,43 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 		});
 
 		const parsed = parseApiData(response?.data);
-		const sanitized = parsed.map(sanitizeLine).filter((line) => line.designation.length > 0 || line.remarque);
+		const sanitized = [];
+		const sourceLines = [];
 
-		setLines(sanitized);
-		if (sanitized.length === 0) {
+		parsed.forEach((rawLine) => {
+			const cleanLine = sanitizeLine(rawLine);
+			if (cleanLine.designation.length > 0 || cleanLine.remarque) {
+				sanitized.push(cleanLine);
+				sourceLines.push(rawLine);
+			}
+		});
+
+		const hasLiterLines = sourceLines.some((line) => Number.isFinite(extractLineLiters(line)));
+		let finalLines = sanitized;
+
+		if (hasLiterLines) {
+			const canSize = await new Promise((resolve) => {
+				Alert.alert(
+					'Conversion des litres',
+					'Des lignes en litres ont été détectées. Choisissez la taille du bidon.',
+					[
+						{ text: '5L', onPress: () => resolve(5) },
+						{ text: '1L', onPress: () => resolve(1) },
+					],
+					{ cancelable: false }
+				);
+			});
+
+			finalLines = sanitized.map((line, index) => {
+				const liters = extractLineLiters(sourceLines[index]);
+				if (!Number.isFinite(liters)) return line;
+				const quantite = clamp(convertLitersToCans(liters, canSize), 0, 10000);
+				return recalcLine({ ...line, quantite });
+			});
+		}
+
+		setLines(finalLines);
+		if (finalLines.length === 0) {
 			setError('Aucune ligne exploitable détectée. Vérifiez le contenu collé ou le PDF.');
 		}
 	}, [parseApiData]);
