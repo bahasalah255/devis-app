@@ -972,7 +972,7 @@ class TextExtractionController extends Controller
             if ($this->isTableHeaderLine($line)) {
                 return false;
             }
-            return $this->isLikelyProductDataLine($line);
+            return $this->isLikelyProductDataLine($line) || $this->parseLine($line, false) !== null;
         }));
 
         if (count($subset) < 1) {
@@ -1007,6 +1007,10 @@ class TextExtractionController extends Controller
         }
 
         if ($hasText && $numberHits >= 1 && ($hasPriceCue || $hasQtyCue)) {
+            return true;
+        }
+
+        if ($hasText && $numberHits >= 1 && preg_match('/\d+(?:[\.,]\d+)?\s*$/u', $value)) {
             return true;
         }
 
