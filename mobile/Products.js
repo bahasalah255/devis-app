@@ -11,6 +11,7 @@ import {
 	TextInput,
 	Modal,
 	KeyboardAvoidingView,
+	ScrollView,
 	Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -274,64 +275,72 @@ function Products({ navigation }) {
 			<Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
 				<KeyboardAvoidingView
 					style={s.modalWrap}
-					behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'android' ? 20 : 0}
 				>
-					<View style={s.modalCard}>
-						<Text style={s.modalTitle}>{editingId ? 'Modifier produit' : 'Nouveau produit'}</Text>
-						<TextInput
-							style={s.input}
-							placeholder="Libellé *"
-							placeholderTextColor={C.sub}
-							value={libelle}
-							onChangeText={setLibelle}
-						/>
-						<TextInput
-							style={s.input}
-							placeholder="Description"
-							placeholderTextColor={C.sub}
-							value={description}
-							onChangeText={setDescription}
-							multiline
-						/>
-						<TextInput
-							style={s.input}
-							placeholder="Prix unitaire HT"
-							placeholderTextColor={C.sub}
-							value={prixUnitaire}
-							onChangeText={setPrixUnitaire}
-							keyboardType="numeric"
-						/>
-						<TextInput
-							style={s.input}
-							placeholder="TVA (%)"
-							placeholderTextColor={C.sub}
-							value={tva}
-							onChangeText={setTva}
-							keyboardType="numeric"
-						/>
+					<ScrollView
+						style={s.modalScroll}
+						contentContainerStyle={s.modalScrollContent}
+						keyboardShouldPersistTaps="handled"
+						showsVerticalScrollIndicator={false}
+					>
+						<View style={s.modalCard}>
+							<Text style={s.modalTitle}>{editingId ? 'Modifier produit' : 'Nouveau produit'}</Text>
+							<TextInput
+								style={s.input}
+								placeholder="Libellé *"
+								placeholderTextColor={C.sub}
+								value={libelle}
+								onChangeText={setLibelle}
+							/>
+							<TextInput
+								style={s.input}
+								placeholder="Description"
+								placeholderTextColor={C.sub}
+								value={description}
+								onChangeText={setDescription}
+								multiline
+							/>
+							<TextInput
+								style={s.input}
+								placeholder="Prix unitaire HT"
+								placeholderTextColor={C.sub}
+								value={prixUnitaire}
+								onChangeText={setPrixUnitaire}
+								keyboardType="numeric"
+							/>
+							<TextInput
+								style={s.input}
+								placeholder="TVA (%)"
+								placeholderTextColor={C.sub}
+								value={tva}
+								onChangeText={setTva}
+								keyboardType="numeric"
+							/>
 
-						<View style={s.unitsRow}>
-							{PRODUCT_UNITS.map((u) => (
-								<TouchableOpacity
-									key={u}
-									activeOpacity={0.85}
-									style={[s.unitPill, unite === u && s.unitPillActive]}
-									onPress={() => setUnite(u)}
-								>
-									<Text style={[s.unitPillTxt, unite === u && s.unitPillTxtActive]}>{u}</Text>
+							<View style={s.unitsRow}>
+								{PRODUCT_UNITS.map((u) => (
+									<TouchableOpacity
+										key={u}
+										activeOpacity={0.85}
+										style={[s.unitPill, unite === u && s.unitPillActive]}
+										onPress={() => setUnite(u)}
+									>
+										<Text style={[s.unitPillTxt, unite === u && s.unitPillTxtActive]}>{u}</Text>
+									</TouchableOpacity>
+								))}
+							</View>
+
+							<View style={s.modalActions}>
+								<TouchableOpacity activeOpacity={0.85} style={s.cancelBtn} onPress={() => setShowForm(false)}>
+									<Text style={s.cancelTxt}>Annuler</Text>
 								</TouchableOpacity>
-							))}
+								<TouchableOpacity activeOpacity={0.85} style={s.saveBtn} onPress={saveProduct}>
+									{saving ? <ActivityIndicator color={C.white} /> : <Text style={s.saveTxt}>Enregistrer</Text>}
+								</TouchableOpacity>
+							</View>
 						</View>
-
-						<View style={s.modalActions}>
-							<TouchableOpacity activeOpacity={0.85} style={s.cancelBtn} onPress={() => setShowForm(false)}>
-								<Text style={s.cancelTxt}>Annuler</Text>
-							</TouchableOpacity>
-							<TouchableOpacity activeOpacity={0.85} style={s.saveBtn} onPress={saveProduct}>
-								{saving ? <ActivityIndicator color={C.white} /> : <Text style={s.saveTxt}>Enregistrer</Text>}
-							</TouchableOpacity>
-						</View>
-					</View>
+					</ScrollView>
 				</KeyboardAvoidingView>
 			</Modal>
 
@@ -451,6 +460,12 @@ const s = StyleSheet.create({
 	modalWrap: {
 		flex: 1,
 		backgroundColor: 'rgba(0,0,0,0.35)',
+		justifyContent: 'flex-end',
+	},
+	modalScroll: {
+		maxHeight: '90%',
+	},
+	modalScrollContent: {
 		justifyContent: 'flex-end',
 	},
 	modalCard: {

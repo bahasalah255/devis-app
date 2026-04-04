@@ -223,10 +223,12 @@ export default function Update({ navigation, route }) {
 		setSaving(true);
 		try {
 			const token = await AsyncStorage.getItem('token');
+			const selectedClient = clients.find((c) => String(c.id) === String(clientId));
 			await axios.put(
 				`${API_BASE_URL}/devis/${initial.id}`,
 				{
 					client_id: Number(clientId),
+					email: selectedClient?.email || initial.email,
 					statut,
 					date_emission: initial.date_emission,
 					date_validite: initial.date_validite,

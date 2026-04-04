@@ -35,7 +35,9 @@ export default function Dash({ navigation }) {
 	const [devis, setDevis] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const [sharingPdfId, setSharingPdfId] = useState(null);
 	const autoArchivedRef = useRef(new Set());
+	const shareLockRef = useRef(false);
 	const insets = useSafeAreaInsets();
 
 	const load = async (refresh = false) => {
@@ -208,6 +210,9 @@ export default function Dash({ navigation }) {
 		*/
 	
 	const sendPdfWhatsApp = async (id) => {
+		if (shareLockRef.current) return;
+		shareLockRef.current = true;
+		setSharingPdfId(id);
 		 try {
 			const headers = await getPdfRequestHeaders();
         // 1. Download PDF from your Laravel API
@@ -235,7 +240,7 @@ export default function Dash({ navigation }) {
         }
 
         // 3. Open native share sheet → user picks WhatsApp
-		await Sharing.shareAsync(downloadResult.uri, {
+			await Sharing.shareAsync(downloadResult.uri, {
             mimeType: 'application/pdf',
             dialogTitle: `Devis Equipement Chefchouani ${id}`,
             UTI: 'com.adobe.pdf', // iOS only
@@ -275,6 +280,10 @@ export default function Dash({ navigation }) {
         Alert.alert('Erreur', `Impossible d\'envoyer la facture.\nURL: ${API_BASE_URL}\nDétail: ${details}`);
         console.error(error);
     }
+		finally {
+			shareLockRef.current = false;
+			setSharingPdfId(null);
+		}
 		
 	}
 	const handleArchive = async (id) => {
@@ -345,8 +354,17 @@ export default function Dash({ navigation }) {
 						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => downloadInvoice(item.id, item.email)}>
     <MaterialIcons name="email" size={20} color="white" />
 </TouchableOpacity>
-						<TouchableOpacity activeOpacity={0.8} style={s.actionBtn} onPress={() => sendPdfWhatsApp(item.id)}>
-							<FontAwesome name="whatsapp" size={20} color="white" />
+						<TouchableOpacity
+							activeOpacity={0.8}
+							style={[s.actionBtn, sharingPdfId === item.id && s.actionBtnDisabled]}
+							onPress={() => sendPdfWhatsApp(item.id)}
+							disabled={sharingPdfId !== null}
+						>
+							{sharingPdfId === item.id ? (
+								<ActivityIndicator size="small" color="white" />
+							) : (
+								<FontAwesome name="whatsapp" size={20} color="white" />
+							)}
 						</TouchableOpacity>
 					</View>
 				</View>
@@ -535,6 +553,9 @@ const s = StyleSheet.create({
 		justifyContent: 'center',
 		alignItems: 'center',
 		...SHADOW,
+	},
+	actionBtnDisabled: {
+		opacity: 0.7,
 	},
 	archiveMini: {
 		width: 36,
