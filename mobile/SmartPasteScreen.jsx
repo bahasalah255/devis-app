@@ -168,9 +168,13 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 	const [loading, setLoading] = useState(false);
 	const [inserting, setInserting] = useState(false);
 	const [error, setError] = useState(null);
+	const [pendingLines, setPendingLines] = useState([]);
 	const [lines, setLines] = useState([]);
 
 	const totalHT = useMemo(() => lines.reduce((sum, line) => sum + toNumber(line.total_ht, 0), 0), [lines]);
+	const totalDetectedCount = pendingLines.length + lines.length;
+	const acceptedCount = lines.length;
+	const pendingCount = pendingLines.length;
 
 	const parseApiData = useCallback((data) => {
 		if (Array.isArray(data)) return data;
@@ -230,11 +234,17 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 			});
 		}
 
-		setLines(finalLines);
+		if (mode === 'text') {
+			setLines(finalLines);
+			setPendingLines([]);
+		} else {
+			setPendingLines(finalLines);
+		}
+
 		if (finalLines.length === 0) {
 			setError('Aucune ligne exploitable détectée. Vérifiez le contenu collé ou le PDF.');
 		}
-	}, [parseApiData]);
+	}, [mode, parseApiData]);
 
 	const handleParseText = useCallback(async () => {
 		const text = rawText.trim();
@@ -391,6 +401,26 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 		setLines((prev) => prev.filter((_, i) => i !== index));
 	}, []);
 
+	const acceptPendingLine = useCallback((index) => {
+		setPendingLines((prev) => {
+			const next = [...prev];
+			const [accepted] = next.splice(index, 1);
+			if (accepted) {
+				setLines((current) => [...current, accepted]);
+			}
+			return next;
+		});
+	}, []);
+
+	const rejectPendingLine = useCallback((index) => {
+		setPendingLines((prev) => prev.filter((_, i) => i !== index));
+	}, []);
+
+	const acceptAllPendingLines = useCallback(() => {
+		setLines((current) => [...current, ...pendingLines]);
+		setPendingLines([]);
+	}, [pendingLines]);
+
 	const normalizeLabel = useCallback((value) => String(value || '').trim().toLowerCase(), []);
 
 	const upsertProductsFromLines = useCallback(async (finalLines) => {
@@ -484,6 +514,31 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 		</TouchableOpacity>
 	), [removeLine]);
 
+	const renderPendingItem = useCallback(({ item, index }) => (
+		<View style={s.pendingCard}>
+			<Text style={s.pendingTitle} numberOfLines={2}>{item.designation}</Text>
+			<View style={s.inlineRow}>
+				<View style={s.fieldHalf}>
+					<Text style={s.fieldLabel}>Quantité</Text>
+					<Text style={s.pendingValue}>{String(item.quantite)}</Text>
+				</View>
+				<View style={s.fieldHalf}>
+					<Text style={s.fieldLabel}>Prix unitaire HT</Text>
+					<Text style={s.pendingValue}>{String(item.prix_unitaire_ht)}</Text>
+				</View>
+			</View>
+			{item.remarque ? <Text style={s.remarque}>{item.remarque}</Text> : null}
+			<View style={s.pendingActions}>
+				<TouchableOpacity style={[s.pendingBtn, s.pendingBtnOk]} onPress={() => acceptPendingLine(index)}>
+					<Text style={s.pendingBtnTxt}>Accepter</Text>
+				</TouchableOpacity>
+				<TouchableOpacity style={[s.pendingBtn, s.pendingBtnDanger]} onPress={() => rejectPendingLine(index)}>
+					<Text style={s.pendingBtnTxt}>Supprimer</Text>
+				</TouchableOpacity>
+			</View>
+		</View>
+	), [acceptPendingLine, rejectPendingLine]);
+
 	const renderItem = useCallback(({ item, index }) => (
 		<Swipeable overshootRight={false} renderRightActions={() => renderDeleteAction(index)}>
 			<View style={s.lineCard}>
@@ -566,7 +621,40 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 					keyboardShouldPersistTaps="handled"
 					contentContainerStyle={s.listContent}
 					ListHeaderComponent={(
-						<View style={s.card}>
+						<>
+							{pendingLines.length > 0 ? (
+								<View style={s.card}>
+									<View style={s.headerRow}>
+										<Text style={s.cardTitle}>Produits détectés</Text>
+										<TouchableOpacity style={s.acceptAllBtn} onPress={acceptAllPendingLines}>
+											<Text style={s.acceptAllBtnTxt}>Tout accepter</Text>
+										</TouchableOpacity>
+									</View>
+									<View style={s.counterRow}>
+										<View style={s.counterPill}>
+											<Text style={s.counterLabel}>Détectés</Text>
+											<Text style={s.counterValue}>{totalDetectedCount}</Text>
+										</View>
+										<View style={s.counterPill}>
+											<Text style={s.counterLabel}>Acceptés</Text>
+											<Text style={s.counterValue}>{acceptedCount}</Text>
+										</View>
+										<View style={s.counterPill}>
+											<Text style={s.counterLabel}>Restants</Text>
+											<Text style={s.counterValue}>{pendingCount}</Text>
+										</View>
+									</View>
+									<FlatList
+										data={pendingLines}
+										keyExtractor={(item, index) => `pending-${item.designation}-${index}`}
+										renderItem={renderPendingItem}
+										scrollEnabled={false}
+										ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+									/>
+								</View>
+							) : null}
+
+							<View style={s.card}>
 							{mode === 'text' ? (
 								<>
 									<Text style={s.cardTitle}>Texte brut à analyser</Text>
@@ -609,9 +697,10 @@ export default function SmartPasteScreen({ onInsert, onClose }) {
 							)}
 
 							{error ? <Text style={s.errorTxt}>{error}</Text> : null}
-						</View>
+							</View>
+						</>
 					)}
-					ListEmptyComponent={!loading ? <Text style={s.empty}>Aucune ligne détectée pour le moment.</Text> : null}
+					ListEmptyComponent={!loading && lines.length === 0 && pendingLines.length === 0 ? <Text style={s.empty}>Aucune ligne détectée pour le moment.</Text> : null}
 				/>
 
 				<View style={s.footer}>
@@ -697,6 +786,59 @@ const s = StyleSheet.create({
 		padding: 10,
 		marginBottom: 10,
 	},
+	pendingCard: {
+		backgroundColor: '#F8F9FF',
+		borderRadius: 12,
+		borderWidth: 1,
+		borderColor: '#D9DDFE',
+		padding: 10,
+		marginBottom: 10,
+	},
+	pendingTitle: { color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8 },
+	pendingValue: {
+		height: 42,
+		borderWidth: 1,
+		borderColor: C.border,
+		borderRadius: 10,
+		paddingHorizontal: 10,
+		paddingTop: 11,
+		fontSize: 15,
+		color: C.text,
+		backgroundColor: '#FAFAFB',
+	},
+	pendingActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+	pendingBtn: {
+		flex: 1,
+		height: 42,
+		borderRadius: 10,
+		justifyContent: 'center',
+		alignItems: 'center',
+	},
+	pendingBtnOk: { backgroundColor: C.success },
+	pendingBtnDanger: { backgroundColor: C.danger },
+	pendingBtnTxt: { color: C.white, fontSize: 13, fontWeight: '800' },
+	headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+	acceptAllBtn: {
+		height: 34,
+		paddingHorizontal: 10,
+		borderRadius: 10,
+		justifyContent: 'center',
+		alignItems: 'center',
+		backgroundColor: '#E9EAFF',
+	},
+	acceptAllBtnTxt: { color: C.accent, fontSize: 12, fontWeight: '800' },
+	counterRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 12 },
+	counterPill: {
+		flex: 1,
+		borderRadius: 12,
+		paddingVertical: 8,
+		paddingHorizontal: 10,
+		backgroundColor: '#FAFAFB',
+		borderWidth: 1,
+		borderColor: C.border,
+	},
+	counterLabel: { color: C.sub, fontSize: 11, fontWeight: '700' },
+	counterValue: { color: C.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
 	input: {
 		height: 46,
 		borderWidth: 1,
