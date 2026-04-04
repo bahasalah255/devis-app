@@ -453,9 +453,19 @@ class TextExtractionController extends Controller
         try {
             file_put_contents($imagePath, $binary);
 
-            $command = $tesseractPath . ' ' . escapeshellarg($imagePath) . ' stdout -l fra+eng --psm 6 2>&1';
-            $output = shell_exec($command);
-            $text = trim((string) $output);
+            $languages = ['fra+eng', 'eng', null];
+            $text = '';
+
+            foreach ($languages as $lang) {
+                $langArg = $lang ? (' -l ' . escapeshellarg($lang)) : '';
+                $command = $tesseractPath . ' ' . escapeshellarg($imagePath) . ' stdout' . $langArg . ' --psm 6 2>&1';
+                $output = shell_exec($command);
+                $text = trim((string) $output);
+
+                if ($text !== '' && !preg_match('/Error opening data file|Failed loading language|Tesseract couldn\'t load any languages/i', $text)) {
+                    break;
+                }
+            }
 
             if ($text === '') {
                 throw new \RuntimeException('OCR local: aucun texte détecté.');

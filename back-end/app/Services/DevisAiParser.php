@@ -326,7 +326,12 @@ class DevisAiParser
             throw new RuntimeException('JSON IA invalide.');
         }
 
-        return $decoded;
+        $normalized = $this->normalizeDecodedLines($decoded);
+        if ($normalized === null) {
+            throw new RuntimeException('JSON IA invalide.');
+        }
+
+        return $normalized;
     }
 
     private function normalizeImageMimeType(string $mimeType): ?string
@@ -370,7 +375,10 @@ class DevisAiParser
         $value = preg_replace('/\s*```$/', '', $value) ?? $value;
         $value = trim($value);
 
-        if (str_starts_with($value, '[') && str_ends_with($value, ']')) {
+        if (
+            (str_starts_with($value, '[') && str_ends_with($value, ']')) ||
+            (str_starts_with($value, '{') && str_ends_with($value, '}'))
+        ) {
             return $value;
         }
 
@@ -378,7 +386,35 @@ class DevisAiParser
             return trim((string) $match[0]);
         }
 
+        if (preg_match('/\{[\s\S]*\}/', $value, $match)) {
+            return trim((string) $match[0]);
+        }
+
         return null;
+    }
+
+    private function normalizeDecodedLines(array $decoded): ?array
+    {
+        if ($this->isListArray($decoded)) {
+            return $decoded;
+        }
+
+        foreach (['lines', 'lignes', 'data', 'items', 'result'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key]) && $this->isListArray($decoded[$key])) {
+                return $decoded[$key];
+            }
+        }
+
+        return null;
+    }
+
+    private function isListArray(array $value): bool
+    {
+        if ($value === []) {
+            return true;
+        }
+
+        return array_keys($value) === range(0, count($value) - 1);
     }
 
     private function decodeOpenAiResponse(int $status, bool $successful, mixed $jsonBody): array
@@ -409,7 +445,12 @@ class DevisAiParser
             throw new RuntimeException('JSON OpenAI invalide.');
         }
 
-        return $decoded;
+        $normalized = $this->normalizeDecodedLines($decoded);
+        if ($normalized === null) {
+            throw new RuntimeException('JSON OpenAI invalide.');
+        }
+
+        return $normalized;
     }
 
     private function collectOpenAiTextOutput(array $body): string
