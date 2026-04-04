@@ -224,22 +224,27 @@ export default function Update({ navigation, route }) {
 		try {
 			const token = await AsyncStorage.getItem('token');
 			const selectedClient = clients.find((c) => String(c.id) === String(clientId));
+			const normalizedEmail = String(selectedClient?.email || initial.email || '').trim();
+			const payload = {
+				client_id: Number(clientId),
+				statut,
+				date_emission: initial.date_emission,
+				date_validite: initial.date_validite,
+				lignes: lignes.map((l) => ({
+					produit_id: l.produit_id ? Number(l.produit_id) : null,
+					description: l.description || l.nom,
+					quantite: Number(l.quantite),
+					prix_unitaire: Number(l.prix_unitaire),
+					remise: Number(l.remise || 0),
+				})),
+			};
+
+			if (normalizedEmail) {
+				payload.email = normalizedEmail;
+			}
 			await axios.put(
 				`${API_BASE_URL}/devis/${initial.id}`,
-				{
-					client_id: Number(clientId),
-					email: selectedClient?.email || initial.email,
-					statut,
-					date_emission: initial.date_emission,
-					date_validite: initial.date_validite,
-					lignes: lignes.map((l) => ({
-						produit_id: l.produit_id ? Number(l.produit_id) : null,
-						description: l.description || l.nom,
-						quantite: Number(l.quantite),
-						prix_unitaire: Number(l.prix_unitaire),
-						remise: Number(l.remise || 0),
-					})),
-				},
+				payload,
 				{ headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
 			);
 

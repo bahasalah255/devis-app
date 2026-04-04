@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Client;
 use App\Models\Devis;
 use App\Models\DevisLigne;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class DevisController extends Controller
     {
         $request->validate([
             'client_id'    => 'required|exists:clients,id',
-            'email' => 'required|email|exists:clients,email',
+            'email' => 'nullable|email',
             'date_emission'=> 'required|date',
             'date_validite'=> 'nullable|date',
             'lignes'       => 'required|array|min:1',
@@ -53,11 +54,13 @@ class DevisController extends Controller
 
         $tva = 20;
         $total_ttc = $total_ht * (1 + $tva / 100);
+        $client = Client::find($request->client_id);
+        $resolvedEmail = $request->filled('email') ? $request->email : ($client?->email);
 
         // Créer le devis
         $devis = Devis::create([
             'client_id'     => $request->client_id,
-            'email'         => $request->email,
+            'email'         => $resolvedEmail,
             'user_id'       => $request->user()->id,
             'statut'        => 'brouillon',
             'date_emission' => $request->date_emission,
@@ -100,7 +103,7 @@ class DevisController extends Controller
 
         $request->validate([
             'client_id'             => 'required|exists:clients,id',
-            'email' => 'required|email|exists:clients,email',
+            'email' => 'nullable|email',
             'date_emission'         => 'required|date',
             'date_validite'         => 'nullable|date',
             'statut'                => 'nullable|in:brouillon,envoye,accepte,refuse',
@@ -119,11 +122,13 @@ class DevisController extends Controller
         }
         $tva       = 20;
         $total_ttc = $total_ht * (1 + $tva / 100);
+        $client = Client::find($request->client_id);
+        $resolvedEmail = $request->filled('email') ? $request->email : ($client?->email);
 
         // Update devis fields
         $devis->update([
             'client_id'     => $request->client_id,
-            'email'         => $request->email,
+            'email'         => $resolvedEmail,
             'date_emission' => $request->date_emission,
             'date_validite' => $request->date_validite,
             'statut'        => $request->statut ?? $devis->statut,

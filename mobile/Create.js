@@ -252,22 +252,27 @@ export default function Create({ navigation, route }) {
 			const dateEm = new Date();
 			const dateVal = new Date();
 			dateVal.setDate(dateVal.getDate() + 30);
+			const normalizedEmail = String(clientEmail || '').trim();
+			const payload = {
+				client_id: Number(clientId),
+				date_emission: toISO(dateEm),
+				date_validite: toISO(dateVal),
+				lignes: lignes.map((l) => ({
+					produit_id: l.produit_id ? Number(l.produit_id) : null,
+					description: l.description || l.nom,
+					quantite: Number(l.quantite),
+					prix_unitaire: Number(l.prix_unitaire),
+					remise: Number(l.remise || 0),
+				})),
+			};
+
+			if (normalizedEmail) {
+				payload.email = normalizedEmail;
+			}
 
 			await axios.post(
 				`${API_BASE_URL}/devis`,
-				{
-					client_id: Number(clientId),
-					email : clientEmail,
-					date_emission: toISO(dateEm),
-					date_validite: toISO(dateVal),
-					lignes: lignes.map((l) => ({
-						produit_id: l.produit_id ? Number(l.produit_id) : null,
-						description: l.description || l.nom,
-						quantite: Number(l.quantite),
-						prix_unitaire: Number(l.prix_unitaire),
-						remise: Number(l.remise || 0),
-					})),
-				},
+				payload,
 				{ headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
 			);
 
@@ -309,7 +314,7 @@ export default function Create({ navigation, route }) {
 			setClients((prev) => [created, ...prev]);
 			setClientId(String(created.id));
 			setClientNom('');
-			setClientEmail(created.email);
+			setClientEmail(String(created?.email || ''));
 			setClientTel('');
 			setShowClientForm(false);
 		} catch (error) {
@@ -441,7 +446,7 @@ export default function Create({ navigation, route }) {
 									renderItem={({ item }) => (
 										<TouchableOpacity
 											style={[s.itemRow, String(clientId) === String(item.id) && s.itemRowActive]}
-											onPress={() => { setClientId(String(item.id)) , setClientEmail(item.email) }}
+											onPress={() => { setClientId(String(item.id)); setClientEmail(String(item?.email || '')); }}
 										>
 											<Text style={s.itemMain}>{item.nom}</Text>
 											{!!item.email && <Text style={s.itemSub}>{item.email}</Text>}
