@@ -11,7 +11,7 @@ use App\Http\Controllers\TextExtractionController;
 //Routes
 Route::post('/login',    [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
-Route::middleware(['auth:sanctum', 'trial'])->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
 	Route::post('/logout', [AuthController::class, 'logout']);
 	Route::get('/me', [AuthController::class, 'me']);
 	Route::post('/parse-devis', [TextExtractionController::class, 'extractDevisLignes']);
