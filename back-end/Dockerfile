@@ -21,12 +21,16 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Copy project
 COPY . .
 
+# Install dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
+# Create necessary folders
 RUN mkdir -p \
     storage/framework/cache/data \
     storage/framework/sessions \
@@ -34,6 +38,26 @@ RUN mkdir -p \
     storage/logs \
     bootstrap/cache
 
+# Permissions
+RUN chmod -R 775 storage bootstrap/cache
+
 EXPOSE 10000
 
-CMD ["sh", "-c", "mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache && php artisan config:clear && php artisan route:clear && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"]
+CMD ["sh", "-c", "
+echo 'Starting Laravel app...' &&
+
+mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache &&
+
+php artisan config:clear &&
+php artisan route:clear &&
+php artisan cache:clear &&
+
+echo 'Running migrations...' &&
+php artisan migrate --force &&
+
+echo 'Seeding database...' &&
+php artisan db:seed --force &&
+
+echo 'Starting server...' &&
+php artisan serve --host=0.0.0.0 --port=${PORT:-10000}
+"]
