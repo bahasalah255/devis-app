@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers;
 
 use App\Models\Produit;
@@ -10,7 +9,10 @@ class ProduitController extends Controller
 {
     public function index()
     {
-        $produits = Produit::get();
+        $produits = Produit::where('user_id', auth()->id())
+            ->latest()
+            ->get();
+
         return response()->json($produits);
     }
 
@@ -30,7 +32,7 @@ class ProduitController extends Controller
             'prix_unitaire' => $request->prix_unitaire,
             'tva'           => $request->tva ?? 20.00,
             'unite'         => $request->unite,
-           
+            'user_id'       => auth()->id(),
         ]);
 
         return response()->json($produit, 201);
@@ -38,13 +40,14 @@ class ProduitController extends Controller
 
     public function show($id)
     {
-        $produit = Produit::findOrFail($id);
+        $produit = Produit::where('user_id', auth()->id())->findOrFail($id);
+
         return response()->json($produit);
     }
 
     public function update(Request $request, $id)
     {
-        $produit = Produit::findOrFail($id);
+        $produit = Produit::where('user_id', auth()->id())->findOrFail($id);
 
         $request->validate([
             'libelle'       => 'string|max:255',
@@ -68,9 +71,8 @@ class ProduitController extends Controller
 
     public function destroy($id)
     {
-        $produit = Produit::findOrFail($id);
+        $produit = Produit::where('user_id', auth()->id())->findOrFail($id);
 
-        // Désactiver au lieu de supprimer
         $produit->update(['actif' => false]);
 
         return response()->json([
