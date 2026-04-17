@@ -8,29 +8,28 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckTrial
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  Closure(Request): (Response)  $next
-     */
-    public function handle($request, Closure $next)
-{
-    $user = auth()->user();
+    public function handle(Request $request, Closure $next): Response
+    {
+        $user = auth()->user();
 
-    if ($user) {
-
-        if (!$user->trial_ends_at) {
-            $user->trial_ends_at = now()->addDays(7);
-            $user->save();
+        if (!$user) {
+            return $next($request);
         }
 
-        if (now()->greaterThan($user->trial_ends_at)) {
+        if (empty($user->trial_ends_at)) {
+            $user->trial_ends_at = now()->addDays(7);
+            $user->save();
+            return $next($request);
+        }
+
+        $trialEndsAt = $user->trial_ends_at;
+
+        if (now()->greaterThan($trialEndsAt)) {
             return response()->json([
                 'message' => 'Trial expired'
             ], 403);
         }
-    }
 
-    return $next($request);
-}
+        return $next($request);
+    }
 }
