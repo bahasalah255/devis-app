@@ -21,10 +21,6 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('password'),
         ]);
 
-        // ── Clients ───────────────────────────────────────────────
-        Client::factory(8)->create();
-
-        // ── Produits (all 10 preset products) ─────────────────────
-        Produit::factory(10)->create();
+        
     }
 }
