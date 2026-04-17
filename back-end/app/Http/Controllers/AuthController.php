@@ -40,28 +40,41 @@ class AuthController extends Controller
     // LOGIN
     // ═══════════════════════════════
     public function login(Request $request)
-    {
-        $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required',
-        ]);
+{
+    $request->validate([
+        'email'    => 'required|email',
+        'password' => 'required',
+    ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
-            throw ValidationException::withMessages([
-                'email' => ['Email ou mot de passe incorrect.'],
-            ]);
-        }
-
-        $user  = Auth::user();
-        $token = $user->createToken('auth_token')->plainTextToken;
-        
-        return response()->json([
-            'message' => 'Connexion réussie',
-            'user'    => $user,
-            'token'   => $token,
+    if (!Auth::attempt($request->only('email', 'password'))) {
+        throw ValidationException::withMessages([
+            'email' => ['Email ou mot de passe incorrect.'],
         ]);
     }
 
+    $user = Auth::user();
+
+    // أول login -> نبداو trial
+    if (!$user->trial_ends_at) {
+        $user->trial_ends_at = now()->addDays(7);
+        $user->save();
+    }
+
+    // إلا سالات trial -> ما نعطيوش token
+    if (now()->greaterThan($user->trial_ends_at)) {
+        return response()->json([
+            'message' => 'Votre période d’essai est terminée'
+        ], 403);
+    }
+
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'message' => 'Connexion réussie',
+        'user'    => $user,
+        'token'   => $token,
+    ]);
+}
     // ═══════════════════════════════
     // LOGOUT
     // ═══════════════════════════════
