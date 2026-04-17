@@ -2,6 +2,7 @@ FROM php:8.3-cli
 
 WORKDIR /var/www/html
 
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -21,16 +22,16 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Composer
+# Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy project
+# Copy project files
 COPY . .
 
-# Install dependencies
+# Install PHP dependencies
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
-# Create necessary folders
+# Create required directories
 RUN mkdir -p \
     storage/framework/cache/data \
     storage/framework/sessions \
@@ -38,26 +39,10 @@ RUN mkdir -p \
     storage/logs \
     bootstrap/cache
 
-# Permissions
+# Set permissions
 RUN chmod -R 775 storage bootstrap/cache
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "
-echo 'Starting Laravel app...' &&
-
-mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache &&
-
-php artisan config:clear &&
-php artisan route:clear &&
-php artisan cache:clear &&
-
-echo 'Running migrations...' &&
-php artisan migrate --force &&
-
-echo 'Seeding database...' &&
-php artisan db:seed --force &&
-
-echo 'Starting server...' &&
-php artisan serve --host=0.0.0.0 --port=${PORT:-10000}
-"]
+# Start Laravel app with migrate + seed
+CMD sh -c "mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache && php artisan config:clear && php artisan route:clear && php artisan cache:clear && php artisan migrate --seed --force && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"
