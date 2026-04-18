@@ -54,7 +54,7 @@ class AuthController extends Controller
 
     $user = Auth::user();
 
-    // أول login -> نبداو trial
+    
     if (!$user->trial_ends_at) {
         $user->trial_ends_at = now()->addDays(7);
         $user->save();
