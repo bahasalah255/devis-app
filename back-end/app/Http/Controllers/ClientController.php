@@ -32,7 +32,7 @@ class ClientController extends Controller
             'email'     => $request->email,
             'telephone' => $request->telephone,
             'adresse'   => $request->adresse,
-            'user_id'   => auth()->id(), // 🔥 مهم
+            'user_id'   => auth()->id(), 
         ]);
 
         return response()->json($client, 201);
