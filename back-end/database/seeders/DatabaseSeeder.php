@@ -15,9 +15,9 @@ class DatabaseSeeder extends Seeder
         $this->call(AdminUserSeeder::class);
 
         // ── Known user (use this to login) ────────────────────────
-        User::updateOrcreate([
-            'name'     => 'admin',
-            'email'    => 'admin@mail.com',
+        User::updateOrcreate( ['email' => 'admin@mail.com'],
+        [
+            'name' => 'admin',
             'password' => Hash::make('admin'),
         ]);
 
