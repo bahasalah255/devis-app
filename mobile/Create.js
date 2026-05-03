@@ -181,8 +181,31 @@ export default function Create({ navigation, route }) {
 		(async () => {
 			setLoadingRefs(true);
 			try {
+				// Ensure user has a company profile before allowing devis creation
 				const token = await AsyncStorage.getItem('token');
-				const headers = { Authorization: `Bearer ${token}` };
+				if (!token) {
+					Alert.alert('Authentification requise', 'Veuillez vous connecter.');
+					navigation.replace('Login');
+					return;
+				}
+				try {
+					const companyRes = await axios.get(`${API_BASE_URL}/company`, { headers: { Authorization: `Bearer ${token}` } });
+					if (!companyRes?.data) {
+						Alert.alert('Profil requis', 'Veuillez créer votre profil d\'entreprise avant de créer un devis.');
+						navigation.replace('CompanySetup');
+						setLoadingRefs(false);
+						return;
+					}
+				} catch (err) {
+					// If company check fails due to auth or server, redirect to login or show error
+					if (err?.response?.status === 401) {
+						await AsyncStorage.multiRemove(['token', 'user']);
+						navigation.replace('Login');
+						return;
+					}
+				}
+				const token2 = await AsyncStorage.getItem('token');
+				const headers = { Authorization: `Bearer ${token2}` };
 				const [cr, pr] = await Promise.all([
 					axios.get(`${API_BASE_URL}/clients`, { headers }),
 					axios.get(`${API_BASE_URL}/produits`, { headers }),
@@ -297,8 +320,14 @@ export default function Create({ navigation, route }) {
 				{ text: 'Voir les devis', onPress: () => navigation.replace('Dash') },
 			]);
 		} catch (e) {
-			if (e?.response?.status === 422) Alert.alert('Validation', 'Vérifiez les informations saisies.');
-			else Alert.alert('Erreur', 'Impossible de créer le devis.');
+			if (e?.response?.status === 422) {
+				Alert.alert('Validation', 'Vérifiez les informations saisies.');
+			} else if (e?.response?.status === 403) {
+				Alert.alert('Profil requis', 'Veuillez créer votre profil d\'entreprise avant de créer un devis.');
+				navigation.replace('CompanySetup');
+			} else {
+				Alert.alert('Erreur', 'Impossible de créer le devis.');
+			}
 		} finally {
 			setSaving(false);
 		}

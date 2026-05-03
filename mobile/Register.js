@@ -49,19 +49,21 @@ export default function Register({ navigation }) {
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(user));
 
-      // Immediately check company
-      try {
-        const companyRes = await axios.get(`${API_BASE_URL}/company`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (companyRes?.data) {
-          navigation.replace('Dash');
-        } else {
+      // If backend returned company in response, use it. Otherwise fetch it.
+      const returnedCompany = res.data.company;
+      if (typeof returnedCompany !== 'undefined') {
+        if (returnedCompany) navigation.replace('Dash');
+        else navigation.replace('CompanySetup');
+      } else {
+        try {
+          const companyRes = await axios.get(`${API_BASE_URL}/company`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (companyRes?.data) navigation.replace('Dash');
+          else navigation.replace('CompanySetup');
+        } catch (e) {
           navigation.replace('CompanySetup');
         }
-      } catch (e) {
-        // If company check fails, allow setup flow
-        navigation.replace('CompanySetup');
       }
     } catch (err) {
       if (err?.response?.data) {

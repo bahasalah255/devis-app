@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\Company;
 use App\Models\Devis;
 use App\Models\DevisLigne;
 use Illuminate\Http\Request;
@@ -32,6 +33,14 @@ class DevisController extends Controller
 
     public function store(Request $request)
     {
+        // Ensure the authenticated user has a company profile before creating a devis
+        $userId = $request->user()->id;
+        if (!Company::where('user_id', $userId)->exists()) {
+            return response()->json([
+                'message' => 'Company profile required before creating devis.'
+            ], 403);
+        }
+
         $request->validate([
             'client_id'    => 'required|exists:clients,id',
             'email' => 'nullable|email',
