@@ -124,6 +124,8 @@ const sp = StyleSheet.create({
 export default function Create({ navigation, route }) {
 	const insets = useSafeAreaInsets();
 	const [step, setStep] = useState(1);
+	const [company, setCompany] = useState(null);
+	const [companyChecked, setCompanyChecked] = useState(false);
 	const [clientId, setClientId] = useState('');
 	const [clients, setClients] = useState([]);
 	const [produits, setProduits] = useState([]);
@@ -157,8 +159,14 @@ export default function Create({ navigation, route }) {
 
 	const client = clients.find((c) => String(c.id) === String(clientId));
 	const totalHT = useMemo(() => lignes.reduce((sum, l) => sum + calcLigne(l), 0), [lignes]);
-	const totalTVA = totalHT * 0.2;
-	const totalTTC = totalHT * 1.2;
+	const companyTvaPercent = useMemo(() => {
+		const raw = String(company?.tva_type || '').trim().toLowerCase();
+		if (!raw || raw === 'no tva') return 0;
+		const match = raw.match(/(\d+(?:\.\d+)?)/);
+		return match ? Number(match[1]) : 0;
+	}, [company]);
+	const totalTVA = totalHT * (companyTvaPercent / 100);
+	const totalTTC = totalHT * (1 + companyTvaPercent / 100);
 
 	const filteredClients = useMemo(() => {
 		const q = clientQuery.trim().toLowerCase();
@@ -180,12 +188,14 @@ export default function Create({ navigation, route }) {
 	useEffect(() => {
 		(async () => {
 			setLoadingRefs(true);
+			setCompanyChecked(false);
 			try {
 				// Ensure user has a company profile before allowing devis creation
 				const token = await AsyncStorage.getItem('token');
 				if (!token) {
 					Alert.alert('Authentification requise', 'Veuillez vous connecter.');
 					navigation.replace('Login');
+					setCompanyChecked(true);
 					return;
 				}
 				try {
@@ -193,14 +203,22 @@ export default function Create({ navigation, route }) {
 					if (!companyRes?.data) {
 						Alert.alert('Profil requis', 'Veuillez créer votre profil d\'entreprise avant de créer un devis.');
 						navigation.replace('CompanySetup');
-						setLoadingRefs(false);
+						setCompanyChecked(true);
 						return;
 					}
+					setCompany(companyRes.data);
 				} catch (err) {
 					// If company check fails due to auth or server, redirect to login or show error
 					if (err?.response?.status === 401) {
 						await AsyncStorage.multiRemove(['token', 'user']);
 						navigation.replace('Login');
+						setCompanyChecked(true);
+						return;
+					}
+					if (err?.response?.status === 403 || err?.response?.status === 422) {
+						Alert.alert('Profil requis', 'Veuillez créer votre profil d\'entreprise avant de créer un devis.');
+						navigation.replace('CompanySetup');
+						setCompanyChecked(true);
 						return;
 					}
 				}
@@ -216,6 +234,7 @@ export default function Create({ navigation, route }) {
 				Alert.alert('Erreur', 'Chargement des données impossible.');
 			} finally {
 				setLoadingRefs(false);
+				setCompanyChecked(true);
 			}
 		})();
 	}, []);
@@ -407,6 +426,17 @@ export default function Create({ navigation, route }) {
 			setSavingProduct(false);
 		}
 	};
+
+	if (!companyChecked) {
+		return (
+			<SafeAreaView style={s.safe}>
+				<View style={s.loadingScreen}>
+					<ActivityIndicator color={C.accent} />
+					<Text style={s.loadingScreenTxt}>Vérification du profil d'entreprise…</Text>
+				</View>
+			</SafeAreaView>
+		);
+	}
 
 	return (
 		<SafeAreaView style={s.safe}>
@@ -718,7 +748,7 @@ export default function Create({ navigation, route }) {
 									<Text style={s.receiptValue}>{totalHT.toFixed(2)} MAD</Text>
 								</View>
 								<View style={s.receiptRow}>
-									<Text style={s.receiptLabel}>TVA (20%)</Text>
+									<Text style={s.receiptLabel}>TVA ({companyTvaPercent || 0}%)</Text>
 									<Text style={s.receiptValue}>{totalTVA.toFixed(2)} MAD</Text>
 								</View>
 
@@ -956,6 +986,13 @@ const s = StyleSheet.create({
 
 	loadingWrap: { alignItems: 'center', paddingVertical: 32, gap: 12 },
 	loadingTxt: { color: C.sub, fontSize: 14, fontWeight: '500' },
+	loadingScreen: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
+		backgroundColor: C.bg,
+	},
+	loadingScreenTxt: { marginTop: 12, color: C.sub, fontSize: 14, fontWeight: '500' },
 
 	card: {
 		backgroundColor: C.white,

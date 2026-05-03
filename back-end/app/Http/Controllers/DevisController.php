@@ -11,6 +11,25 @@ use Illuminate\Support\Facades\Mail;
 
 class DevisController extends Controller
 {
+    private function resolveCompanyTvaPercent(?string $tvaType): float
+    {
+        if (! $tvaType) {
+            return 0.0;
+        }
+
+        $normalized = strtolower(trim($tvaType));
+
+        if ($normalized === 'no tva') {
+            return 0.0;
+        }
+
+        if (preg_match('/(\d+(?:\.\d+)?)/', $normalized, $matches)) {
+            return (float) $matches[1];
+        }
+
+        return 0.0;
+    }
+
     public function index_archive(Request $request){
         $devis = Devis::with('client', 'lignes.produit')
             ->where('user_id', $request->user()->id)
@@ -53,6 +72,13 @@ class DevisController extends Controller
             'lignes.*.remise'       => 'nullable|numeric|min:0|max:100',
         ]);
 
+        $company = \App\Models\Company::where('user_id', $request->user()->id)->first();
+        if (! $company) {
+            return response()->json([
+                'message' => 'Company profile required before creating devis.'
+            ], 403);
+        }
+
         // Calculer les totaux
         $total_ht = 0;
         foreach ($request->lignes as $ligne) {
@@ -61,7 +87,7 @@ class DevisController extends Controller
             $total_ht += $total_ligne;
         }
 
-        $tva = 20;
+        $tva = $this->resolveCompanyTvaPercent($company->tva_type);
         $total_ttc = $total_ht * (1 + $tva / 100);
         $client = Client::find($request->client_id);
         $resolvedEmail = $request->filled('email') ? $request->email : ($client?->email);
@@ -123,13 +149,20 @@ class DevisController extends Controller
             'lignes.*.remise'       => 'nullable|numeric|min:0|max:100',
         ]);
 
+        $company = \App\Models\Company::where('user_id', $request->user()->id)->first();
+        if (! $company) {
+            return response()->json([
+                'message' => 'Company profile required before creating devis.'
+            ], 403);
+        }
+
         // Recalculate totals
         $total_ht = 0;
         foreach ($request->lignes as $ligne) {
             $remise       = $ligne['remise'] ?? 0;
             $total_ht    += $ligne['quantite'] * $ligne['prix_unitaire'] * (1 - $remise / 100);
         }
-        $tva       = 20;
+        $tva       = $this->resolveCompanyTvaPercent($company->tva_type);
         $total_ttc = $total_ht * (1 + $tva / 100);
         $client = Client::find($request->client_id);
         $resolvedEmail = $request->filled('email') ? $request->email : ($client?->email);
