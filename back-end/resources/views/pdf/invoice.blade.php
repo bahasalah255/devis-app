@@ -231,7 +231,20 @@ html, body {
     $totalPages = $lignesPages->count();
     $hasMultiplePages = $totalPages > 1;
     $totalHT = $devis->lignes->sum(fn($l) => $l->quantite * $l->prix_unitaire);
-    $tva = $totalHT * 0.2;
+
+    // Resolve TVA percent from the company's tva_type when available.
+    $company = $devis->user->company ?? null;
+    $tvaPercent = 20; // default to 20% for backwards compatibility
+    if ($company && !empty($company->tva_type)) {
+        $raw = strtolower(trim($company->tva_type));
+        if (str_contains($raw, 'no') || str_contains($raw, 'none')) {
+            $tvaPercent = 0;
+        } elseif (preg_match('/(\d+(?:\.\d+)?)/', $raw, $m)) {
+            $tvaPercent = (float) $m[1];
+        }
+    }
+
+    $tva = $totalHT * ($tvaPercent / 100);
     $ttc = $totalHT + $tva;
 @endphp
 
@@ -310,7 +323,7 @@ html, body {
                     <td class="t-value-cell">{{ number_format($totalHT, 2, ',', ' ') }}</td>
                 </tr>
                 <tr>
-                    <td class="t-label-cell">T.V.A. (20 %)</td>
+                    <td class="t-label-cell">T.V.A. ({{ rtrim(rtrim(number_format($tvaPercent, 2, '.', ''), '0'), '.') }} %)</td>
                     <td class="t-value-cell">{{ number_format($tva, 2, ',', ' ') }}</td>
                 </tr>
                 <tr class="ttc">
@@ -340,7 +353,7 @@ html, body {
                     <td class="t-value-cell">{{ number_format($totalHT, 2, ',', ' ') }}</td>
                 </tr>
                 <tr>
-                    <td class="t-label-cell">T.V.A. (20 %)</td>
+                    <td class="t-label-cell">T.V.A. ({{ rtrim(rtrim(number_format($tvaPercent, 2, '.', ''), '0'), '.') }} %)</td>
                     <td class="t-value-cell">{{ number_format($tva, 2, ',', ' ') }}</td>
                 </tr>
                 <tr class="ttc">
