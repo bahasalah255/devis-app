@@ -26,6 +26,7 @@ export default function App() {
         />
         <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login"       component={Login} />
+          <Stack.Screen name="Register" component={require('./Register').default} />
           <Stack.Screen name="CompanySetup" component={CompanySetup} />
           <Stack.Screen name="Dash"        component={Dash} />
           <Stack.Screen name="Clients"       component={Clients} />
