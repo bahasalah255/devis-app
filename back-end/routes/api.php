@@ -8,6 +8,7 @@ use App\Http\Controllers\DevisController;
 use App\Http\Controllers\DevisLigneController;
 use App\Http\Controllers\PricingSuggestionController;
 use App\Http\Controllers\TextExtractionController;
+use App\Http\Controllers\CompanyController;
 //Routes
 Route::post('/login',    [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -19,6 +20,10 @@ Route::middleware(['auth:sanctum', 'trial'])->group(function () {
 	Route::get('/pricing/suggest', [PricingSuggestionController::class, 'suggest']);
 	Route::apiResource('clients', ClientController::class);
 	Route::apiResource('produits', ProduitController::class);
+
+	// Company setup endpoints
+	Route::get('/company', [CompanyController::class, 'index']);
+	Route::post('/company', [CompanyController::class, 'store']);
 
 	// Devis index_archive
 	Route::apiResource('devis', DevisController::class);

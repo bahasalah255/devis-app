@@ -30,16 +30,28 @@ export default function Login({ navigation }) {
 		let isMounted = true;
 		const autoLogin = async () => {
 			try {
-				const token = await AsyncStorage.getItem('token');
-				if (!token) return;
-				const response = await axios.get(`${API_BASE_URL}/me`, {
-					headers: { Authorization: `Bearer ${token}` },
-				});
-				const user = response?.data;
-				if (user) {
-					await AsyncStorage.setItem('user', JSON.stringify(user));
-					if (isMounted) navigation.replace('Dash');
-				}
+					const token = await AsyncStorage.getItem('token');
+					if (!token) return;
+					const response = await axios.get(`${API_BASE_URL}/me`, {
+						headers: { Authorization: `Bearer ${token}` },
+					});
+					const user = response?.data;
+					if (user) {
+						await AsyncStorage.setItem('user', JSON.stringify(user));
+						// check company
+						try {
+							const companyRes = await axios.get(`${API_BASE_URL}/company`, {
+								headers: { Authorization: `Bearer ${token}` },
+							});
+							if (companyRes?.data) {
+								if (isMounted) navigation.replace('Dash');
+							} else {
+								if (isMounted) navigation.replace('CompanySetup');
+							}
+						} catch {
+							if (isMounted) navigation.replace('Login');
+						}
+					}
 			} catch {
 				await AsyncStorage.multiRemove(['token', 'user']);
 			} finally {
@@ -61,9 +73,22 @@ export default function Login({ navigation }) {
 				email: email.trim().toLowerCase(),
 				password,
 			});
-			await AsyncStorage.setItem('token', response.data.token);
-			await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-			navigation.replace('Dash');
+						await AsyncStorage.setItem('token', response.data.token);
+						await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+						// check company and redirect accordingly
+						try {
+							const companyRes = await axios.get(`${API_BASE_URL}/company`, {
+								headers: { Authorization: `Bearer ${response.data.token}` },
+							});
+							if (companyRes?.data) {
+								navigation.replace('Dash');
+							} else {
+								navigation.replace('CompanySetup');
+							}
+						} catch (e) {
+							// fallback to dash on error
+							navigation.replace('Dash');
+						}
 		} catch (error) {
 			if (!error?.response) {
 				Alert.alert('Connexion impossible', 'Vérifiez votre connexion internet et réessayez.');

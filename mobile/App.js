@@ -8,6 +8,7 @@ import Clients from './Clients.js';
 import Products from './Products.js';
 import Parameters from './Parameters.js';
 import SmartPasteScreen from './SmartPasteScreen.jsx';
+import CompanySetup from './CompanySetup.js';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -25,6 +26,7 @@ export default function App() {
         />
         <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login"       component={Login} />
+          <Stack.Screen name="CompanySetup" component={CompanySetup} />
           <Stack.Screen name="Dash"        component={Dash} />
           <Stack.Screen name="Clients"       component={Clients} />
           <Stack.Screen name="Products"       component={Products} />
