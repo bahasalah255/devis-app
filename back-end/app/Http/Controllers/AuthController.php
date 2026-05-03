@@ -39,6 +39,7 @@ class AuthController extends Controller
             'message' => 'Inscription réussie',
             'user'    => $user,
             'token'   => $token,
+            'company' => $user->company ?? null,
         ], 201);
     }
 
