@@ -27,6 +27,12 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        // Ensure new users receive a trial period
+        if (!$user->trial_ends_at) {
+            $user->trial_ends_at = now()->addDays(7);
+            $user->save();
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([

@@ -38,7 +38,7 @@ export default function Login({ navigation }) {
 					const user = response?.data;
 					if (user) {
 						await AsyncStorage.setItem('user', JSON.stringify(user));
-						// check company
+						// check company and redirect accordingly
 						try {
 							const companyRes = await axios.get(`${API_BASE_URL}/company`, {
 								headers: { Authorization: `Bearer ${token}` },
@@ -49,7 +49,7 @@ export default function Login({ navigation }) {
 								if (isMounted) navigation.replace('CompanySetup');
 							}
 						} catch {
-							if (isMounted) navigation.replace('Login');
+							if (isMounted) navigation.replace('Dash');
 						}
 					}
 			} catch {
@@ -187,6 +187,10 @@ export default function Login({ navigation }) {
 								<Ionicons name="arrow-forward" size={18} color={C.white} />
 							</>
 						)}
+					</TouchableOpacity>
+
+					<TouchableOpacity style={{ marginTop: 12, alignItems: 'center' }} onPress={() => navigation.replace('Register')}>
+						<Text style={{ color: C.sub }}>Pas encore de compte ? S'inscrire</Text>
 					</TouchableOpacity>
 
 					<Text style={s.hint}>
