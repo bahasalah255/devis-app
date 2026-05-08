@@ -44,5 +44,5 @@ RUN chmod -R 775 storage bootstrap/cache
 
 EXPOSE 10000
 
-# Start Laravel app with migrate + seed
-CMD sh -c "mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache && php artisan config:clear && php artisan route:clear && php artisan cache:clear && php artisan migrate --seed --force && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"
+# Start Laravel app; migrations are handled separately so an existing database does not block boot.
+CMD sh -c "mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache && php artisan config:clear && php artisan route:clear && php artisan cache:clear && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"
