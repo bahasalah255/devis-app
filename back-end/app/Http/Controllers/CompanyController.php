@@ -4,37 +4,45 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class CompanyController extends Controller
 {
-    /**
-     * Return the authenticated user's company or null.
-     */
-    public function index(Request $request): JsonResponse
+    public function create()
     {
-        return response()->json($request->user()->company);
+        return view('companies.create');
     }
 
-    /**
-     * Create a company for the authenticated user.
-     */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
-        $user = $request->user();
-
-        if ($user->company) {
-            return response()->json(['message' => 'Company already exists'], 409);
-        }
-
         $data = $request->validate([
-            'company_name' => 'required|string|max:255',
-            'domain' => 'required|string|max:255',
-            'tva_type' => 'required|string|max:50',
+            'name' => 'required|string|max:255',
+            'slogan' => 'nullable|string|max:255',
+            'logo' => 'nullable|image|max:2048',
+            'address' => 'nullable|string|max:1024',
+            'phone' => 'nullable|string|max:50',
+            'fax' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:255',
+            'tva_type' => 'nullable|string|max:255',
+            'tva_percent' => 'nullable|numeric',
+            'if_number' => 'nullable|string|max:100',
+            'patente' => 'nullable|string|max:100',
+            'rc' => 'nullable|string|max:100',
+            'cnss' => 'nullable|string|max:100',
+            'ice' => 'nullable|string|max:100',
         ]);
 
-        $company = Company::create(array_merge($data, ['user_id' => $user->id]));
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('companies', 'public');
+            $data['logo'] = $path;
+        }
 
-        return response()->json($company, 201);
+        $data['user_id'] = Auth::id();
+
+        $company = Company::create($data);
+
+        return redirect()->route('companies.create')->with('status', 'Company saved successfully.');
     }
 }
+

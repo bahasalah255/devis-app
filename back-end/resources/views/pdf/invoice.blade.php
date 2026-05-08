@@ -232,15 +232,71 @@ html, body {
     $hasMultiplePages = $totalPages > 1;
     $totalHT = $devis->lignes->sum(fn($l) => $l->quantite * $l->prix_unitaire);
 
-    // Resolve TVA percent from the company's tva_type when available.
-    $company = $devis->user->company ?? null;
-    $tvaPercent = 20; // default to 20% for backwards compatibility
-    if ($company && !empty($company->tva_type)) {
-        $raw = strtolower(trim($company->tva_type));
-        if (str_contains($raw, 'no') || str_contains($raw, 'none')) {
-            $tvaPercent = 0;
-        } elseif (preg_match('/(\d+(?:\.\d+)?)/', $raw, $m)) {
-            $tvaPercent = (float) $m[1];
+    // Resolve company based on authenticated account (multi-company support).
+    $company = auth()->user()->company ?? $devis->user->company ?? null;
+
+    // Friendly company field resolution with common fallbacks.
+    $companyName = $company->name ?? $company->nom ?? $company->company_name ?? 'Votre Société';
+    $companySlogan = $company->slogan ?? $company->tagline ?? '';
+
+    // Logo: prefer company-provided path, support URLs, storage/app/public, public/storage, and fallback to public/logo.jpg.
+    $logoData = null;
+    $logoSrc = null;
+    $logoPath = $company->logo_path ?? $company->logo ?? null;
+
+    if (!empty($logoPath)) {
+        // If it's an external URL, use it directly (may not embed when generating PDF remotely).
+        if (preg_match('/^https?:\/\//i', $logoPath)) {
+            $logoSrc = $logoPath;
+        } else {
+            $possible = [
+                public_path($logoPath),
+                public_path('storage/' . ltrim($logoPath, '/')),
+                storage_path('app/public/' . ltrim($logoPath, '/')),
+                storage_path('app/' . ltrim($logoPath, '/')),
+            ];
+            foreach ($possible as $p) {
+                if (file_exists($p) && is_readable($p)) {
+                    $mime = function_exists('mime_content_type') ? mime_content_type($p) : 'image/jpeg';
+                    $logoData = base64_encode(file_get_contents($p));
+                    $logoSrc = "data:{$mime};base64,{$logoData}";
+                    break;
+                }
+            }
+        }
+    }
+
+    // Fallback to public/logo.jpg if no logo resolved
+    if (empty($logoSrc) && file_exists(public_path('logo.jpg'))) {
+        $p = public_path('logo.jpg');
+        $mime = function_exists('mime_content_type') ? mime_content_type($p) : 'image/jpeg';
+        $logoData = base64_encode(file_get_contents($p));
+        $logoSrc = "data:{$mime};base64,{$logoData}";
+    }
+
+    // Contact & registration details fallbacks
+    $companyAddress = $company->address ?? $company->adresse ?? $company->street ?? '';
+    $companyPhone = $company->phone ?? $company->telephone ?? $company->tel ?? '';
+    $companyFax = $company->fax ?? '';
+    $companyEmail = $company->email ?? $company->mail ?? '';
+    $companyIF = $company->if ?? $company->if_number ?? '';
+    $companyPatente = $company->patente ?? '';
+    $companyRC = $company->rc ?? '';
+    $companyCNSS = $company->cnss ?? '';
+    $companyICE = $company->ice ?? '';
+
+    // Resolve TVA percent: accept explicit numeric tva_percent, or infer from tva_type string.
+    $tvaPercent = 20; // default
+    if ($company) {
+        if (isset($company->tva_percent) && is_numeric($company->tva_percent)) {
+            $tvaPercent = (float) $company->tva_percent;
+        } elseif (!empty($company->tva_type)) {
+            $raw = strtolower(trim($company->tva_type));
+            if (str_contains($raw, 'no') || str_contains($raw, 'none')) {
+                $tvaPercent = 0;
+            } elseif (preg_match('/(\d+(?:\.\d+)?)/', $raw, $m)) {
+                $tvaPercent = (float) $m[1];
+            }
         }
     }
 
@@ -259,13 +315,18 @@ html, body {
         @if($isFirstPage)
             <table class="header-table">
                 <tr>
-                    <td class="logo-td"><img class="logo" src="data:image/jpeg;base64,{{ base64_encode(file_get_contents(public_path('logo.jpg'))) }}" alt="Logo"></td>
+                    <td class="logo-td">
+                        @if(!empty($logoSrc))
+                            <img class="logo" src="{{ $logoSrc }}" alt="Logo">
+                        @else
+                            <div style="width:120px;height:110px;display:flex;align-items:center;justify-content:center;font-weight:bold">{{ \Illuminate\Support\Str::limit($companyName, 12) }}</div>
+                        @endif
+                    </td>
                     <td class="company-td">
-                        <div class="company">EQUIPEMENT CHEFCHAOUNI SARL</div>
-                        <div class="slogan">
-                                Outillages à main &nbsp;·&nbsp; Électricité &nbsp;·&nbsp; Sanitaire &nbsp;·&nbsp;
-                                Quincaillerie &nbsp;·&nbsp; Outillages électroportatifs &nbsp;·&nbsp; Peintures
-                        </div>
+                        <div class="company">{{ $companyName }}</div>
+                        @if(!empty($companySlogan))
+                        <div class="slogan">{{ $companySlogan }}</div>
+                        @endif
                     </td>
                 </tr>
             </table>
@@ -336,11 +397,33 @@ html, body {
         <tr>
             <td>
                 <div class="footer-content">
-                    <span class="footer-line">54, Bd Chefchaouni Aïn Sebaâ — CASABLANCA</span>
-                    <span class="footer-line">Tél : 022.35.33.82 / 022.66.17.87 | Fax : 022.66.17.87</span>
-                    <span class="footer-line">I.F. : 1682364 · Patente : 31590255 · R.C. : 185015</span>
-                    <span class="footer-line">C.N.S.S. : 7842702 · ICE : 000013024000074</span>
-                    <span class="footer-line">E-mail : eqchefchaouni@gmail.com</span>
+                    @if(!empty($companyAddress))
+                        <span class="footer-line">{{ $companyAddress }}</span>
+                    @endif
+
+                    @if(!empty($companyPhone) || !empty($companyFax))
+                        <span class="footer-line">
+                            @if(!empty($companyPhone)) Tél : {{ $companyPhone }} @endif
+                            @if(!empty($companyPhone) && !empty($companyFax)) | @endif
+                            @if(!empty($companyFax)) Fax : {{ $companyFax }} @endif
+                        </span>
+                    @endif
+
+                    @if(!empty($companyIF) || !empty($companyPatente) || !empty($companyRC))
+                        <span class="footer-line">I.F. : {{ $companyIF ?: '-' }} · Patente : {{ $companyPatente ?: '-' }} · R.C. : {{ $companyRC ?: '-' }}</span>
+                    @endif
+
+                    @if(!empty($companyCNSS) || !empty($companyICE))
+                        <span class="footer-line">
+                            @if(!empty($companyCNSS)) C.N.S.S. : {{ $companyCNSS }} @endif
+                            @if(!empty($companyCNSS) && !empty($companyICE)) · @endif
+                            @if(!empty($companyICE)) ICE : {{ $companyICE }} @endif
+                        </span>
+                    @endif
+
+                    @if(!empty($companyEmail))
+                        <span class="footer-line">E-mail : {{ $companyEmail }}</span>
+                    @endif
                 </div>
             </td>
         </tr>
