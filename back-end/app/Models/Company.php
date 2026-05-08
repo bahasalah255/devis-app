@@ -10,10 +10,8 @@ class Company extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
-        'company_name',
-        'domain',
-        'tva_type',
+        'user_id', 'name', 'slogan', 'logo', 'address', 'phone', 'fax', 'email',
+        'tva_type', 'tva_percent', 'if_number', 'patente', 'rc', 'cnss', 'ice'
     ];
 
     public function user()
@@ -21,3 +19,4 @@ class Company extends Model
         return $this->belongsTo(User::class);
     }
 }
+

@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Image,
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
+import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
 import { COLORS, SHADOW_LG } from './utils/platformStyles';
@@ -38,6 +40,7 @@ export default function CompanySetup({ navigation }) {
   const [domain, setDomain] = useState(domains[0]);
   const [tvaType, setTvaType] = useState(tvaOptions[0]);
   const [loading, setLoading] = useState(false);
+  const [logoUri, setLogoUri] = useState(null);
 
   const handleSubmit = async () => {
     if (!companyName.trim()) {
@@ -47,13 +50,22 @@ export default function CompanySetup({ navigation }) {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
-      const payload = {
-        company_name: companyName.trim(),
-        domain,
-        tva_type: tvaType,
-      };
-      const response = await axios.post(`${API_BASE_URL}/company`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
+      const formData = new FormData();
+      formData.append('company_name', companyName.trim());
+      formData.append('domain', domain);
+      formData.append('tva_type', tvaType);
+      if (logoUri) {
+        const uriParts = logoUri.split('.');
+        const fileType = uriParts[uriParts.length - 1];
+        formData.append('logo', {
+          uri: logoUri,
+          name: `logo.${fileType}`,
+          type: `image/${fileType}`,
+        });
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/company`, formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
       });
       // optionally store company locally
       await AsyncStorage.setItem('company', JSON.stringify(response.data));
@@ -69,6 +81,22 @@ export default function CompanySetup({ navigation }) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Autorisez l\'accès aux photos pour télécharger un logo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.cancelled) {
+      setLogoUri(result.assets ? result.assets[0].uri : result.uri);
     }
   };
 
@@ -105,6 +133,16 @@ export default function CompanySetup({ navigation }) {
             </Picker>
           </View>
 
+          <Text style={s.label}>Logo</Text>
+          <TouchableOpacity style={s.logoBtn} onPress={pickImage}>
+            <Text style={s.logoBtnTxt}>{logoUri ? 'Changer le logo' : 'Choisir un logo'}</Text>
+          </TouchableOpacity>
+          {logoUri ? (
+            <View style={s.logoPreviewWrap}>
+              <Image source={{ uri: logoUri }} style={s.logoPreview} />
+            </View>
+          ) : null}
+
           <TouchableOpacity style={s.submitBtn} onPress={handleSubmit} disabled={loading}>
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.submitTxt}>Enregistrer</Text>}
           </TouchableOpacity>
@@ -138,4 +176,15 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   submitTxt: { color: '#fff', fontWeight: '800' },
+  logoBtn: {
+    marginTop: 10,
+    backgroundColor: '#E5E7EB',
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoBtnTxt: { color: '#374151', fontWeight: '700' },
+  logoPreviewWrap: { marginTop: 10, alignItems: 'center' },
+  logoPreview: { width: 120, height: 120, borderRadius: 8 },
 });
